@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Serviços | Oficina Mecânica</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>🔧</text></svg>">
+</head>
+<body class="bg-gray-100 min-h-screen pb-20 md:pb-0">
+
+  <!-- NAV DESKTOP -->
+  <header class="hidden md:flex items-center justify-between bg-slate-900 text-white px-8 py-4 shadow-lg sticky top-0 z-40">
+    <div class="flex items-center gap-2 font-bold text-lg">
+      <span class="text-2xl">🔧</span>
+      <span>Oficina Mecânica</span>
+    </div>
+    <nav class="flex gap-2">
+      <a href="index.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Painel</a>
+      <a href="clientes.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Clientes</a>
+      <a href="servicos.html" class="px-4 py-2 rounded-lg bg-sky-600 font-medium transition">Serviços</a>
+    </nav>
+  </header>
+
+  <!-- CABEÇALHO MOBILE -->
+  <header class="md:hidden flex items-center gap-2 bg-slate-900 text-white px-5 py-4 shadow-lg sticky top-0 z-40">
+    <span class="text-2xl">🔧</span>
+    <span class="font-bold text-lg">Oficina Mecânica</span>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-8">
+
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-800">Serviços e Preços</h1>
+      <p class="text-gray-500 text-sm">Cadastre os serviços oferecidos e mantenha os preços atualizados.</p>
+    </div>
+
+    <!-- FORM NOVO SERVIÇO -->
+    <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-6">
+      <h2 class="text-lg font-semibold text-zinc-800 mb-4">Novo Serviço</h2>
+      <form id="form-servico" class="flex flex-col md:flex-row gap-4 md:items-end">
+
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-600 mb-1">Descrição</label>
+          <input type="text" id="input-descricao" required placeholder="Ex: Troca de óleo"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+        </div>
+
+        <div class="w-full md:w-48">
+          <label class="block text-sm font-medium text-gray-600 mb-1">Preço (R$)</label>
+          <input type="number" id="input-preco" required min="0" step="0.01" placeholder="0,00"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+        </div>
+
+        <button type="submit" id="btn-salvar-servico"
+          class="bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold px-6 py-2.5 rounded-lg transition w-full md:w-auto">
+          Adicionar
+        </button>
+      </form>
+      <p id="msg-servico" class="text-sm mt-3 hidden"></p>
+    </section>
+
+    <!-- LISTA DE SERVIÇOS -->
+    <section class="space-y-3">
+      <h2 class="text-lg font-semibold text-zinc-800">Serviços Cadastrados</h2>
+
+      <!-- Tabela para telas médias/grandes -->
+      <div class="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-900 text-white">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium">Descrição</th>
+              <th class="text-left px-4 py-3 font-medium w-48">Preço</th>
+              <th class="text-right px-4 py-3 font-medium w-40">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-servicos" class="divide-y divide-gray-100">
+            <tr><td colspan="3" class="px-4 py-4 text-gray-400">Carregando serviços...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Cards para mobile -->
+      <div id="cards-servicos" class="md:hidden space-y-3">
+        <p class="text-gray-400 text-sm">Carregando serviços...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- NAV MOBILE -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-white flex justify-around items-center py-2 shadow-2xl z-40">
+    <a href="index.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg">
+      <span class="text-xl">📋</span>
+      <span class="text-xs font-medium">Painel</span>
+    </a>
+    <a href="clientes.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg">
+      <span class="text-xl">👤</span>
+      <span class="text-xs font-medium">Clientes</span>
+    </a>
+    <a href="servicos.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg bg-slate-700">
+      <span class="text-xl">🛠️</span>
+      <span class="text-xs font-medium">Serviços</span>
+    </a>
+  </nav>
+
+  <script type="module">
+    import { supabase, logSupabaseError, formatarMoeda } from './js/supabase.js';
+
+    const form = document.getElementById('form-servico');
+    const btnSalvar = document.getElementById('btn-salvar-servico');
+    const msgEl = document.getElementById('msg-servico');
+    const tabelaBody = document.getElementById('tabela-servicos');
+    const cardsWrap = document.getElementById('cards-servicos');
+
+    // -----------------------------------------------------------------
+    // Envio do formulário de novo serviço
+    // -----------------------------------------------------------------
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = 'Salvando...';
+      msgEl.classList.add('hidden');
+
+      const descricao = document.getElementById('input-descricao').value.trim();
+      const preco = Number(document.getElementById('input-preco').value);
+
+      const { error } = await supabase.from('servicos').insert({ descricao, preco });
+
+      btnSalvar.disabled = false;
+      btnSalvar.textContent = 'Adicionar';
+
+      if (error) {
+        logSupabaseError('inserirServico', error);
+        msgEl.textContent = 'Erro ao cadastrar serviço.';
+        msgEl.className = 'text-sm mt-3 text-red-600';
+      } else {
+        msgEl.textContent = 'Serviço cadastrado com sucesso!';
+        msgEl.className = 'text-sm mt-3 text-green-600';
+        form.reset();
+        await carregarServicos();
+      }
+    });
+
+    // -----------------------------------------------------------------
+    // Carrega e renderiza serviços (tabela desktop + cards mobile)
+    // -----------------------------------------------------------------
+    async function carregarServicos() {
+      const { data, error } = await supabase.from('servicos').select('*').order('descricao');
+
+      if (error) {
+        logSupabaseError('carregarServicos', error);
+        tabelaBody.innerHTML = '<tr><td colspan="3" class="px-4 py-4 text-red-500">Erro ao carregar serviços.</td></tr>';
+        cardsWrap.innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar serviços.</p>';
+        return;
+      }
+
+      if (!data.length) {
+        tabelaBody.innerHTML = '<tr><td colspan="3" class="px-4 py-4 text-gray-400">Nenhum serviço cadastrado.</td></tr>';
+        cardsWrap.innerHTML = '<p class="text-gray-400 text-sm">Nenhum serviço cadastrado.</p>';
+        return;
+      }
+
+      tabelaBody.innerHTML = data.map(renderLinhaTabela).join('');
+      cardsWrap.innerHTML = data.map(renderCardMobile).join('');
+
+      ligarEventos();
+    }
+
+    function renderLinhaTabela(s) {
+      return `
+        <tr data-row-id="${s.id}">
+          <td class="px-4 py-3 text-zinc-800">${escapeHtml(s.descricao)}</td>
+          <td class="px-4 py-3">
+            <span class="preco-exibicao font-medium text-zinc-800">${formatarMoeda(s.preco)}</span>
+            <input type="number" step="0.01" min="0" value="${s.preco}" class="preco-input hidden w-28 border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </td>
+          <td class="px-4 py-3 text-right space-x-2">
+            <button data-id="${s.id}" class="btn-editar text-sky-600 hover:text-sky-800 text-sm font-medium">Editar</button>
+            <button data-id="${s.id}" class="btn-salvar-preco hidden text-green-600 hover:text-green-800 text-sm font-medium">Salvar</button>
+            <button data-id="${s.id}" class="btn-excluir text-red-500 hover:text-red-700 text-sm font-medium">Excluir</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    function renderCardMobile(s) {
+      return `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center justify-between gap-3" data-row-id="${s.id}">
+          <div class="flex-1">
+            <p class="font-medium text-zinc-800">${escapeHtml(s.descricao)}</p>
+            <span class="preco-exibicao text-sky-600 font-semibold">${formatarMoeda(s.preco)}</span>
+            <input type="number" step="0.01" min="0" value="${s.preco}" class="preco-input hidden w-28 border border-gray-300 rounded-lg px-2 py-1 mt-1 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+          <div class="flex gap-3 shrink-0">
+            <button data-id="${s.id}" class="btn-editar text-sky-600 text-sm font-medium">Editar</button>
+            <button data-id="${s.id}" class="btn-salvar-preco hidden text-green-600 text-sm font-medium">Salvar</button>
+            <button data-id="${s.id}" class="btn-excluir text-red-500 text-sm font-medium">Excluir</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // -----------------------------------------------------------------
+    // Liga eventos de editar / salvar preço / excluir
+    // (funciona tanto para a tabela desktop quanto para os cards mobile)
+    // -----------------------------------------------------------------
+    function ligarEventos() {
+      document.querySelectorAll('.btn-editar').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const linha = btn.closest('[data-row-id]');
+          linha.querySelector('.preco-exibicao').classList.add('hidden');
+          linha.querySelector('.preco-input').classList.remove('hidden');
+          linha.querySelector('.btn-editar').classList.add('hidden');
+          linha.querySelector('.btn-salvar-preco').classList.remove('hidden');
+        });
+      });
+
+      document.querySelectorAll('.btn-salvar-preco').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const linha = btn.closest('[data-row-id]');
+          const novoPreco = Number(linha.querySelector('.preco-input').value);
+          btn.disabled = true;
+          btn.textContent = 'Salvando...';
+
+          const { error } = await supabase.from('servicos').update({ preco: novoPreco }).eq('id', btn.dataset.id);
+
+          if (error) {
+            logSupabaseError('atualizarPreco', error);
+            alert('Erro ao atualizar preço.');
+            btn.disabled = false;
+            btn.textContent = 'Salvar';
+          } else {
+            await carregarServicos();
+          }
+        });
+      });
+
+      document.querySelectorAll('.btn-excluir').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Excluir este serviço?')) return;
+          const { error } = await supabase.from('servicos').delete().eq('id', btn.dataset.id);
+          if (error) {
+            logSupabaseError('excluirServico', error);
+            alert('Não foi possível excluir. Verifique se este serviço já não está vinculado a algum agendamento.');
+          } else {
+            await carregarServicos();
+          }
+        });
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+
+    // Inicialização
+    carregarServicos();
+  </script>
+
+</body>
+</html>

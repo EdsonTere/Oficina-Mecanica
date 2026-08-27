@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clientes | Oficina Mecânica</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>🔧</text></svg>">
+</head>
+<body class="bg-gray-100 min-h-screen pb-20 md:pb-0">
+
+  <!-- NAV DESKTOP -->
+  <header class="hidden md:flex items-center justify-between bg-slate-900 text-white px-8 py-4 shadow-lg sticky top-0 z-40">
+    <div class="flex items-center gap-2 font-bold text-lg">
+      <span class="text-2xl">🔧</span>
+      <span>Oficina Mecânica</span>
+    </div>
+    <nav class="flex gap-2">
+      <a href="index.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Painel</a>
+      <a href="clientes.html" class="px-4 py-2 rounded-lg bg-sky-600 font-medium transition">Clientes</a>
+      <a href="servicos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Serviços</a>
+    </nav>
+  </header>
+
+  <!-- CABEÇALHO MOBILE -->
+  <header class="md:hidden flex items-center gap-2 bg-slate-900 text-white px-5 py-4 shadow-lg sticky top-0 z-40">
+    <span class="text-2xl">🔧</span>
+    <span class="font-bold text-lg">Oficina Mecânica</span>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-8">
+
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-800">Clientes e Veículos</h1>
+      <p class="text-gray-500 text-sm">Cadastre clientes junto do primeiro veículo e gerencie a base.</p>
+    </div>
+
+    <!-- FORM CADASTRO UNIFICADO -->
+    <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-6">
+      <h2 class="text-lg font-semibold text-zinc-800 mb-4">Novo Cliente + Veículo</h2>
+      <form id="form-cliente" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <fieldset class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 border border-gray-200 rounded-lg p-4">
+          <legend class="text-sm font-semibold text-gray-500 px-1">Dados do Cliente</legend>
+
+          <div class="md:col-span-1">
+            <label class="block text-sm font-medium text-gray-600 mb-1">Nome completo</label>
+            <input type="text" id="input-nome" required placeholder="Ex: João da Silva"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Telefone</label>
+            <input type="tel" id="input-telefone" placeholder="(00) 00000-0000"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">CPF</label>
+            <input type="text" id="input-cpf" placeholder="000.000.000-00"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+        </fieldset>
+
+        <fieldset class="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 border border-gray-200 rounded-lg p-4">
+          <legend class="text-sm font-semibold text-gray-500 px-1">Primeiro Veículo</legend>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Marca</label>
+            <input type="text" id="input-marca" required placeholder="Ex: Fiat"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Modelo</label>
+            <input type="text" id="input-modelo" required placeholder="Ex: Uno"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Placa</label>
+            <input type="text" id="input-placa" required placeholder="ABC1D23" maxlength="8"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none uppercase" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Ano</label>
+            <input type="number" id="input-ano" placeholder="2020" min="1950" max="2100"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+        </fieldset>
+
+        <div class="md:col-span-2 flex justify-end">
+          <button type="submit" id="btn-salvar-cliente"
+            class="bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold px-6 py-2.5 rounded-lg transition w-full md:w-auto">
+            Cadastrar Cliente
+          </button>
+        </div>
+      </form>
+      <p id="msg-cliente" class="text-sm mt-3 hidden"></p>
+    </section>
+
+    <!-- BUSCA E LISTA -->
+    <section class="space-y-3">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <h2 class="text-lg font-semibold text-zinc-800">Clientes Cadastrados</h2>
+        <input type="text" id="input-busca" placeholder="🔎 Buscar por nome ou placa..."
+          class="w-full md:w-72 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+      </div>
+
+      <div id="lista-clientes" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <p class="text-gray-400 text-sm">Carregando clientes...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- NAV MOBILE -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-white flex justify-around items-center py-2 shadow-2xl z-40">
+    <a href="index.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg">
+      <span class="text-xl">📋</span>
+      <span class="text-xs font-medium">Painel</span>
+    </a>
+    <a href="clientes.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg bg-slate-700">
+      <span class="text-xl">👤</span>
+      <span class="text-xs font-medium">Clientes</span>
+    </a>
+    <a href="servicos.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg">
+      <span class="text-xl">🛠️</span>
+      <span class="text-xs font-medium">Serviços</span>
+    </a>
+  </nav>
+
+  <script type="module">
+    import { supabase, logSupabaseError } from './js/supabase.js';
+
+    const form = document.getElementById('form-cliente');
+    const btnSalvar = document.getElementById('btn-salvar-cliente');
+    const msgEl = document.getElementById('msg-cliente');
+    const listaEl = document.getElementById('lista-clientes');
+    const inputBusca = document.getElementById('input-busca');
+    const inputPlaca = document.getElementById('input-placa');
+
+    let clientesCache = []; // guarda os últimos dados carregados para filtrar localmente
+
+    inputPlaca.addEventListener('input', () => {
+      inputPlaca.value = inputPlaca.value.toUpperCase();
+    });
+
+    // -----------------------------------------------------------------
+    // Envio do formulário: cria o cliente e, em seguida, o veículo
+    // -----------------------------------------------------------------
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = 'Salvando...';
+      msgEl.classList.add('hidden');
+
+      const nome = document.getElementById('input-nome').value.trim();
+      const telefone = document.getElementById('input-telefone').value.trim() || null;
+      const cpf = document.getElementById('input-cpf').value.trim() || null;
+      const marca = document.getElementById('input-marca').value.trim();
+      const modelo = document.getElementById('input-modelo').value.trim();
+      const placa = inputPlaca.value.trim();
+      const ano = document.getElementById('input-ano').value || null;
+
+      try {
+        // 1. Cria o cliente
+        const { data: clienteInserido, error: erroCliente } = await supabase
+          .from('clientes')
+          .insert({ nome, telefone, cpf })
+          .select()
+          .single();
+
+        if (erroCliente) throw erroCliente;
+
+        // 2. Cria o veículo vinculado ao cliente recém-criado
+        const { error: erroVeiculo } = await supabase
+          .from('veiculos')
+          .insert({ cliente_id: clienteInserido.id, marca, modelo, placa, ano });
+
+        if (erroVeiculo) throw erroVeiculo;
+
+        msgEl.textContent = 'Cliente e veículo cadastrados com sucesso!';
+        msgEl.className = 'text-sm mt-3 text-green-600';
+        form.reset();
+        await carregarClientes();
+
+      } catch (error) {
+        logSupabaseError('cadastrarClienteVeiculo', error);
+        const mensagem = error.code === '23505'
+          ? 'Já existe um veículo cadastrado com essa placa.'
+          : 'Erro ao cadastrar cliente. Tente novamente.';
+        msgEl.textContent = mensagem;
+        msgEl.className = 'text-sm mt-3 text-red-600';
+      } finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = 'Cadastrar Cliente';
+      }
+    });
+
+    // -----------------------------------------------------------------
+    // Carrega clientes com veículos aninhados
+    // -----------------------------------------------------------------
+    async function carregarClientes() {
+      listaEl.innerHTML = '<p class="text-gray-400 text-sm">Carregando clientes...</p>';
+
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome, telefone, cpf, veiculos ( id, marca, modelo, placa, ano )')
+        .order('nome');
+
+      if (error) {
+        logSupabaseError('carregarClientes', error);
+        listaEl.innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar clientes.</p>';
+        return;
+      }
+
+      clientesCache = data;
+      renderClientes(clientesCache);
+    }
+
+    // -----------------------------------------------------------------
+    // Renderiza lista de clientes (usada tanto no load quanto no filtro)
+    // -----------------------------------------------------------------
+    function renderClientes(lista) {
+      if (!lista.length) {
+        listaEl.innerHTML = '<p class="text-gray-400 text-sm col-span-2">Nenhum cliente encontrado.</p>';
+        return;
+      }
+
+      listaEl.innerHTML = lista.map(cliente => `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-2">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="font-semibold text-zinc-800">${escapeHtml(cliente.nome)}</p>
+              <p class="text-sm text-gray-500">${cliente.telefone ? '📞 ' + escapeHtml(cliente.telefone) : ''}</p>
+              <p class="text-sm text-gray-400">${cliente.cpf ? 'CPF: ' + escapeHtml(cliente.cpf) : ''}</p>
+            </div>
+            <button data-id="${cliente.id}" class="btn-excluir-cliente text-red-500 hover:text-red-700 text-sm shrink-0" title="Excluir cliente">
+              🗑️
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2 pt-1">
+            ${cliente.veiculos.length
+              ? cliente.veiculos.map(v => `
+                  <span class="text-xs bg-slate-100 text-slate-700 border border-slate-300 px-2 py-1 rounded-full font-medium">
+                    🚗 ${escapeHtml(v.marca)} ${escapeHtml(v.modelo)} • ${escapeHtml(v.placa)}${v.ano ? ' (' + v.ano + ')' : ''}
+                  </span>
+                `).join('')
+              : '<span class="text-xs text-gray-400 italic">Nenhum veículo cadastrado</span>'
+            }
+          </div>
+        </div>
+      `).join('');
+
+      // Liga os botões de exclusão
+      document.querySelectorAll('.btn-excluir-cliente').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Excluir este cliente? Os veículos vinculados também serão removidos.')) return;
+          const { error } = await supabase.from('clientes').delete().eq('id', btn.dataset.id);
+          if (error) {
+            logSupabaseError('excluirCliente', error);
+            alert('Erro ao excluir cliente.');
+          } else {
+            await carregarClientes();
+          }
+        });
+      });
+    }
+
+    // -----------------------------------------------------------------
+    // Busca/filtro local por nome ou placa
+    // -----------------------------------------------------------------
+    inputBusca.addEventListener('input', () => {
+      const termo = inputBusca.value.trim().toLowerCase();
+      if (!termo) {
+        renderClientes(clientesCache);
+        return;
+      }
+      const filtrados = clientesCache.filter(c =>
+        c.nome.toLowerCase().includes(termo) ||
+        c.veiculos.some(v => v.placa.toLowerCase().includes(termo))
+      );
+      renderClientes(filtrados);
+    });
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+
+    // Inicialização
+    carregarClientes();
+  </script>
+
+</body>
+</html>
