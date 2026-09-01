@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Entrar | Oficina Mecânica</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>🔧</text></svg>">
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center px-4">
+
+  <div class="w-full max-w-sm">
+
+    <div class="text-center mb-6">
+      <span class="text-4xl">🔧</span>
+      <h1 class="text-white text-xl font-bold mt-2">Oficina Mecânica</h1>
+      <p class="text-slate-400 text-sm">Cada usuário tem seu próprio ambiente de trabalho.</p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 space-y-5">
+
+      <!-- Alternância Entrar / Criar conta -->
+      <div class="flex bg-gray-100 rounded-lg p-1 text-sm font-medium">
+        <button id="tab-entrar" class="flex-1 py-2 rounded-md bg-white shadow text-zinc-800 transition">Entrar</button>
+        <button id="tab-criar" class="flex-1 py-2 rounded-md text-gray-500 transition">Criar conta</button>
+      </div>
+
+      <form id="form-auth" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">E-mail</label>
+          <input type="email" id="input-email" required autocomplete="email"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            placeholder="voce@oficina.com" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Senha</label>
+          <input type="password" id="input-senha" required minlength="6" autocomplete="current-password"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            placeholder="Mínimo 6 caracteres" />
+        </div>
+
+        <button type="submit" id="btn-submit"
+          class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold py-2.5 rounded-lg transition">
+          Entrar
+        </button>
+      </form>
+
+      <p id="msg-auth" class="text-sm text-center hidden"></p>
+    </div>
+
+    <p class="text-center text-slate-500 text-xs mt-6">Sistema para gestão de oficinas mecânicas.</p>
+  </div>
+
+  <script type="module">
+    import { supabase, logSupabaseError } from './js/supabase.js';
+
+    const tabEntrar = document.getElementById('tab-entrar');
+    const tabCriar = document.getElementById('tab-criar');
+    const form = document.getElementById('form-auth');
+    const btnSubmit = document.getElementById('btn-submit');
+    const msgEl = document.getElementById('msg-auth');
+    const inputEmail = document.getElementById('input-email');
+    const inputSenha = document.getElementById('input-senha');
+
+    let modo = 'entrar'; // 'entrar' | 'criar'
+
+    // -----------------------------------------------------------------
+    // Se já existe uma sessão ativa, pula direto para o painel.
+    // -----------------------------------------------------------------
+    (async function verificarSessao() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) window.location.href = 'index.html';
+    })();
+
+    function setModo(novoModo) {
+      modo = novoModo;
+      const criando = modo === 'criar';
+      tabEntrar.classList.toggle('bg-white', !criando);
+      tabEntrar.classList.toggle('shadow', !criando);
+      tabEntrar.classList.toggle('text-zinc-800', !criando);
+      tabEntrar.classList.toggle('text-gray-500', criando);
+
+      tabCriar.classList.toggle('bg-white', criando);
+      tabCriar.classList.toggle('shadow', criando);
+      tabCriar.classList.toggle('text-zinc-800', criando);
+      tabCriar.classList.toggle('text-gray-500', !criando);
+
+      btnSubmit.textContent = criando ? 'Criar conta' : 'Entrar';
+      msgEl.classList.add('hidden');
+    }
+
+    tabEntrar.addEventListener('click', () => setModo('entrar'));
+    tabCriar.addEventListener('click', () => setModo('criar'));
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btnSubmit.disabled = true;
+      msgEl.classList.add('hidden');
+
+      const email = inputEmail.value.trim();
+      const senha = inputSenha.value;
+
+      if (modo === 'entrar') {
+        btnSubmit.textContent = 'Entrando...';
+        const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Entrar';
+
+        if (error) {
+          logSupabaseError('login', error);
+          msgEl.textContent = 'E-mail ou senha incorretos.';
+          msgEl.className = 'text-sm text-center text-red-600';
+        } else {
+          window.location.href = 'index.html';
+        }
+
+      } else {
+        btnSubmit.textContent = 'Criando...';
+        const { data, error } = await supabase.auth.signUp({ email, password: senha });
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Criar conta';
+
+        if (error) {
+          logSupabaseError('signup', error);
+          msgEl.textContent = 'Não foi possível criar a conta. ' + (error.message.includes('already registered') ? 'Este e-mail já está cadastrado.' : 'Tente novamente.');
+          msgEl.className = 'text-sm text-center text-red-600';
+        } else if (data.session) {
+          // Confirmação de e-mail desativada no projeto: já entra direto.
+          window.location.href = 'index.html';
+        } else {
+          msgEl.textContent = 'Conta criada! Verifique seu e-mail para confirmar antes de entrar.';
+          msgEl.className = 'text-sm text-center text-green-600';
+          setModo('entrar');
+        }
+      }
+    });
+  </script>
+
+</body>
+</html>

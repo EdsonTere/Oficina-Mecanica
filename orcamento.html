@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orçamento | Oficina Mecânica</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    #folha { box-shadow: none !important; border: none !important; }
+  }
+</style>
+</head>
+<body class="bg-gray-100 min-h-screen py-8 px-4">
+
+  <div class="max-w-2xl mx-auto space-y-4">
+
+    <!-- BARRA DE AÇÕES (não aparece na impressão) -->
+    <div class="no-print flex flex-wrap gap-2 justify-between items-center">
+      <a href="index.html" class="text-sm text-sky-600 hover:underline">← Voltar ao Painel</a>
+      <div class="flex gap-2 items-center">
+        <button id="btn-whatsapp" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition disabled:bg-gray-300">
+          📲 Enviar por WhatsApp
+        </button>
+        <button id="btn-imprimir" class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+          🖨️ Imprimir
+        </button>
+      </div>
+    </div>
+
+    <!-- FOLHA DO ORÇAMENTO -->
+    <div id="folha" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8 space-y-6">
+      <div id="conteudo-orcamento">
+        <p class="text-gray-400 text-sm">Carregando orçamento...</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, calcularTotalItens, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth } from './js/supabase.js';
+
+    const params = new URLSearchParams(window.location.search);
+    const agendamentoId = params.get('id');
+    const conteudoEl = document.getElementById('conteudo-orcamento');
+    const btnWhatsApp = document.getElementById('btn-whatsapp');
+    const btnImprimir = document.getElementById('btn-imprimir');
+
+    const STATUS_STYLE = {
+      'Pendente': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      'Em Andamento': 'bg-blue-100 text-blue-800 border-blue-300',
+      'Concluído': 'bg-green-100 text-green-800 border-green-300',
+      'Cancelado': 'bg-red-100 text-red-800 border-red-300',
+    };
+
+    btnImprimir.addEventListener('click', () => window.print());
+
+    async function carregarOrcamento() {
+      const user = await requireAuth();
+      if (!user) return; // redirecionado para login.html
+
+      if (!agendamentoId) {
+        conteudoEl.innerHTML = '<p class="text-red-500 text-sm">Nenhum agendamento informado na URL.</p>';
+        return;
+      }
+
+      const { data: ag, error } = await supabase
+        .from('agendamentos')
+        .select(`
+          id, data_hora, status, observacoes,
+          clientes ( nome, telefone, cpf ),
+          veiculos ( marca, modelo, placa, ano ),
+          agendamento_servicos ( quantidade, preco_unitario, servicos ( descricao ) )
+        `)
+        .eq('id', agendamentoId)
+        .single();
+
+      if (error || !ag) {
+        logSupabaseError('carregarOrcamento', error);
+        conteudoEl.innerHTML = '<p class="text-red-500 text-sm">Não foi possível carregar este orçamento.</p>';
+        return;
+      }
+
+      const itens = ag.agendamento_servicos || [];
+      const total = calcularTotalItens(itens);
+      const badge = STATUS_STYLE[ag.status] || STATUS_STYLE['Pendente'];
+
+      conteudoEl.innerHTML = `
+        <div class="flex items-start justify-between border-b border-gray-200 pb-4">
+          <div>
+            <h1 class="text-xl font-bold text-zinc-800">🔧 Oficina Mecânica</h1>
+            <p class="text-sm text-gray-500">Orçamento Nº ${ag.id}</p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full border font-medium ${badge}">${ag.status}</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 py-4 text-sm">
+          <div>
+            <p class="text-gray-400 uppercase text-xs font-semibold mb-1">Cliente</p>
+            <p class="text-zinc-800 font-medium">${escapeHtml(ag.clientes?.nome ?? '-')}</p>
+            ${ag.clientes?.telefone ? `<p class="text-gray-500">${escapeHtml(ag.clientes.telefone)}</p>` : ''}
+            ${ag.clientes?.cpf ? `<p class="text-gray-500">CPF: ${escapeHtml(ag.clientes.cpf)}</p>` : ''}
+          </div>
+          <div>
+            <p class="text-gray-400 uppercase text-xs font-semibold mb-1">Veículo</p>
+            <p class="text-zinc-800 font-medium">${ag.veiculos ? `${escapeHtml(ag.veiculos.marca)} ${escapeHtml(ag.veiculos.modelo)}` : '-'}</p>
+            ${ag.veiculos ? `<p class="text-gray-500">Placa: ${escapeHtml(ag.veiculos.placa)}${ag.veiculos.ano ? ' • ' + ag.veiculos.ano : ''}</p>` : ''}
+          </div>
+          <div>
+            <p class="text-gray-400 uppercase text-xs font-semibold mb-1">Data / Hora</p>
+            <p class="text-zinc-800">${formatarDataHora(ag.data_hora)}</p>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-gray-400 uppercase text-xs font-semibold mb-2">Serviços</p>
+          <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+            <thead class="bg-slate-900 text-white">
+              <tr>
+                <th class="text-left px-3 py-2 font-medium">Descrição</th>
+                <th class="text-center px-3 py-2 font-medium w-16">Qtd.</th>
+                <th class="text-right px-3 py-2 font-medium w-28">Unit.</th>
+                <th class="text-right px-3 py-2 font-medium w-28">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${itens.map(item => `
+                <tr>
+                  <td class="px-3 py-2 text-zinc-700">${escapeHtml(item.servicos?.descricao ?? 'Serviço')}</td>
+                  <td class="px-3 py-2 text-center text-zinc-700">${item.quantidade}</td>
+                  <td class="px-3 py-2 text-right text-zinc-700">${formatarMoeda(item.preco_unitario)}</td>
+                  <td class="px-3 py-2 text-right text-zinc-800 font-medium">${formatarMoeda(item.preco_unitario * item.quantidade)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex justify-end pt-2 border-t border-gray-200">
+          <p class="text-lg font-bold text-zinc-800">Total: <span class="text-sky-600">${formatarMoeda(total)}</span></p>
+        </div>
+
+        ${ag.observacoes ? `
+          <div>
+            <p class="text-gray-400 uppercase text-xs font-semibold mb-1">Observações</p>
+            <p class="text-sm text-zinc-600 italic">${escapeHtml(ag.observacoes)}</p>
+          </div>
+        ` : ''}
+
+        <p class="text-xs text-gray-400 pt-4 border-t border-gray-100">Documento gerado em ${new Date().toLocaleString('pt-BR')}</p>
+      `;
+
+      const link = gerarLinkWhatsApp(ag.clientes?.telefone, montarMensagemAgendamento(ag));
+      if (link) {
+        btnWhatsApp.addEventListener('click', () => window.open(link, '_blank'));
+      } else {
+        btnWhatsApp.disabled = true;
+        btnWhatsApp.title = 'Cliente sem telefone cadastrado';
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+
+    carregarOrcamento();
+  </script>
+
+</body>
+</html>
