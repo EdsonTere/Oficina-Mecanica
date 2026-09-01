@@ -15,10 +15,13 @@
       <span class="text-2xl">🔧</span>
       <span>Oficina Mecânica</span>
     </div>
-    <nav class="flex gap-2">
+    <nav class="flex items-center gap-2">
       <a href="index.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Painel</a>
       <a href="clientes.html" class="px-4 py-2 rounded-lg bg-sky-600 font-medium transition">Clientes</a>
       <a href="servicos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Serviços</a>
+      <a href="concluidos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Concluídos</a>
+      <span class="text-xs text-slate-400 pl-3 pr-1 hidden lg:inline" id="usuario-logado"></span>
+      <button id="btn-sair" class="px-3 py-2 rounded-lg hover:bg-slate-700 text-slate-300 font-medium transition text-sm" title="Sair">Sair</button>
     </nav>
   </header>
 
@@ -117,22 +120,26 @@
 
   <!-- NAV MOBILE -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-white flex justify-around items-center py-2 shadow-2xl z-40">
-    <a href="index.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg">
+    <a href="index.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg">
       <span class="text-xl">📋</span>
       <span class="text-xs font-medium">Painel</span>
     </a>
-    <a href="clientes.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg bg-slate-700">
+    <a href="clientes.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg bg-slate-700">
       <span class="text-xl">👤</span>
       <span class="text-xs font-medium">Clientes</span>
     </a>
-    <a href="servicos.html" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg">
+    <a href="servicos.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg">
       <span class="text-xl">🛠️</span>
       <span class="text-xs font-medium">Serviços</span>
+    </a>
+    <a href="concluidos.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg">
+      <span class="text-xl">✅</span>
+      <span class="text-xs font-medium">Concluídos</span>
     </a>
   </nav>
 
   <script type="module">
-    import { supabase, logSupabaseError } from './js/supabase.js';
+    import { supabase, logSupabaseError, requireAuth, configurarBarraUsuario } from './js/supabase.js';
 
     const form = document.getElementById('form-cliente');
     const btnSalvar = document.getElementById('btn-salvar-cliente');
@@ -292,7 +299,13 @@
     }
 
     // Inicialização
-    carregarClientes();
+    (async function init() {
+      const user = await requireAuth();
+      if (!user) return; // redirecionado para login.html
+
+      configurarBarraUsuario(user);
+      await carregarClientes();
+    })();
   </script>
 
 </body>
