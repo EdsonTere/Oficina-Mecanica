@@ -14,16 +14,14 @@
     <div class="text-center mb-6">
       <span class="text-4xl">🔧</span>
       <h1 class="text-white text-xl font-bold mt-2">Oficina Mecânica</h1>
-      <p class="text-slate-400 text-sm">Cada usuário tem seu próprio ambiente de trabalho.</p>
+      <p class="text-slate-400 text-sm">Acesso restrito. Fale com o administrador para receber seu login.</p>
     </div>
 
     <div class="bg-white rounded-xl shadow-lg p-6 space-y-5">
 
-      <!-- Alternância Entrar / Criar conta -->
-      <div class="flex bg-gray-100 rounded-lg p-1 text-sm font-medium">
-        <button id="tab-entrar" class="flex-1 py-2 rounded-md bg-white shadow text-zinc-800 transition">Entrar</button>
-        <button id="tab-criar" class="flex-1 py-2 rounded-md text-gray-500 transition">Criar conta</button>
-      </div>
+      <p id="msg-bloqueio" class="hidden text-sm text-center bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2">
+        Seu acesso foi desativado pelo administrador. Entre em contato para reativar.
+      </p>
 
       <form id="form-auth" class="space-y-4">
         <div>
@@ -37,7 +35,7 @@
           <label class="block text-sm font-medium text-gray-600 mb-1">Senha</label>
           <input type="password" id="input-senha" required minlength="6" autocomplete="current-password"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            placeholder="Mínimo 6 caracteres" />
+            placeholder="Sua senha" />
         </div>
 
         <button type="submit" id="btn-submit"
@@ -53,87 +51,58 @@
   </div>
 
   <script type="module">
-    import { supabase, logSupabaseError } from './js/supabase.js';
+    import { supabase, logSupabaseError, registrarUltimoLogin } from './js/supabase.js';
 
-    const tabEntrar = document.getElementById('tab-entrar');
-    const tabCriar = document.getElementById('tab-criar');
     const form = document.getElementById('form-auth');
     const btnSubmit = document.getElementById('btn-submit');
     const msgEl = document.getElementById('msg-auth');
+    const msgBloqueioEl = document.getElementById('msg-bloqueio');
     const inputEmail = document.getElementById('input-email');
     const inputSenha = document.getElementById('input-senha');
 
-    let modo = 'entrar'; // 'entrar' | 'criar'
+    // -----------------------------------------------------------------
+    // Se veio de um redirecionamento por bloqueio de acesso, avisa.
+    // -----------------------------------------------------------------
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('bloqueado') === '1') {
+      msgBloqueioEl.classList.remove('hidden');
+    }
 
     // -----------------------------------------------------------------
-    // Se já existe uma sessão ativa, pula direto para o painel.
+    // Se já existe uma sessão ativa (e válida), pula direto para o painel.
+    // A própria página index.html/etc. valida se o acesso ainda está ativo.
     // -----------------------------------------------------------------
     (async function verificarSessao() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) window.location.href = 'index.html';
     })();
 
-    function setModo(novoModo) {
-      modo = novoModo;
-      const criando = modo === 'criar';
-      tabEntrar.classList.toggle('bg-white', !criando);
-      tabEntrar.classList.toggle('shadow', !criando);
-      tabEntrar.classList.toggle('text-zinc-800', !criando);
-      tabEntrar.classList.toggle('text-gray-500', criando);
-
-      tabCriar.classList.toggle('bg-white', criando);
-      tabCriar.classList.toggle('shadow', criando);
-      tabCriar.classList.toggle('text-zinc-800', criando);
-      tabCriar.classList.toggle('text-gray-500', !criando);
-
-      btnSubmit.textContent = criando ? 'Criar conta' : 'Entrar';
-      msgEl.classList.add('hidden');
-    }
-
-    tabEntrar.addEventListener('click', () => setModo('entrar'));
-    tabCriar.addEventListener('click', () => setModo('criar'));
-
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Entrando...';
       msgEl.classList.add('hidden');
 
       const email = inputEmail.value.trim();
       const senha = inputSenha.value;
 
-      if (modo === 'entrar') {
-        btnSubmit.textContent = 'Entrando...';
-        const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = 'Entrar';
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
 
-        if (error) {
-          logSupabaseError('login', error);
-          msgEl.textContent = 'E-mail ou senha incorretos.';
-          msgEl.className = 'text-sm text-center text-red-600';
-        } else {
-          window.location.href = 'index.html';
-        }
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = 'Entrar';
 
-      } else {
-        btnSubmit.textContent = 'Criando...';
-        const { data, error } = await supabase.auth.signUp({ email, password: senha });
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = 'Criar conta';
-
-        if (error) {
-          logSupabaseError('signup', error);
-          msgEl.textContent = 'Não foi possível criar a conta. ' + (error.message.includes('already registered') ? 'Este e-mail já está cadastrado.' : 'Tente novamente.');
-          msgEl.className = 'text-sm text-center text-red-600';
-        } else if (data.session) {
-          // Confirmação de e-mail desativada no projeto: já entra direto.
-          window.location.href = 'index.html';
-        } else {
-          msgEl.textContent = 'Conta criada! Verifique seu e-mail para confirmar antes de entrar.';
-          msgEl.className = 'text-sm text-center text-green-600';
-          setModo('entrar');
-        }
+      if (error) {
+        logSupabaseError('login', error);
+        msgEl.textContent = 'E-mail ou senha incorretos.';
+        msgEl.className = 'text-sm text-center text-red-600';
+        return;
       }
+
+      if (data.user) {
+        await registrarUltimoLogin(data.user.id);
+      }
+
+      window.location.href = 'index.html';
     });
   </script>
 
