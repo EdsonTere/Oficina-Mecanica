@@ -22,6 +22,7 @@
       <a href="clientes.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Clientes</a>
       <a href="servicos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Serviços</a>
       <a href="concluidos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Concluídos</a>
+      <a href="admin.html" id="nav-admin" class="hidden px-4 py-2 rounded-lg hover:bg-amber-700 bg-amber-600 font-medium transition">⚙️ Admin</a>
       <span class="text-xs text-slate-400 pl-3 pr-1 hidden lg:inline" id="usuario-logado"></span>
       <button id="btn-sair" class="px-3 py-2 rounded-lg hover:bg-slate-700 text-slate-300 font-medium transition text-sm" title="Sair">Sair</button>
     </nav>
@@ -42,6 +43,9 @@
       <h1 class="text-2xl font-bold text-zinc-800">Painel de Agendamentos</h1>
       <p class="text-gray-500 text-sm">Cadastre novos agendamentos com um ou mais serviços e acompanhe o status.</p>
     </div>
+
+    <!-- ALERTAS: hoje + revisões próximas -->
+    <div id="area-alertas" class="space-y-3"></div>
 
     <!-- FORM NOVO AGENDAMENTO -->
     <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-6">
@@ -161,7 +165,7 @@
   <!-- SCRIPT PRINCIPAL -->
   <!-- ============================================================ -->
   <script type="module">
-    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, calcularTotalItens, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth, configurarBarraUsuario } from './js/supabase.js';
+    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, formatarData, calcularTotalItens, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth, configurarBarraUsuario, ehHoje, notificar } from './js/supabase.js';
 
     let servicosCache = [];
     let itensOrcamento = []; // itens sendo montados no formulário atual: {servico_id, descricao, preco, quantidade}
@@ -476,6 +480,68 @@
     document.getElementById('btn-atualizar-lista').addEventListener('click', carregarAgendamentos);
 
     // -----------------------------------------------------------------
+    // Verifica agendamentos de hoje e revisões próximas/vencidas,
+    // exibe um banner no topo da página e dispara uma notificação do
+    // navegador (funciona enquanto o app está aberto).
+    // -----------------------------------------------------------------
+    async function verificarAlertas() {
+      const areaAlertas = document.getElementById('area-alertas');
+      const blocos = [];
+
+      // Agendamentos de hoje (em aberto)
+      const { data: agHoje, error: erroHoje } = await supabase
+        .from('agendamentos')
+        .select('id, data_hora, status, clientes ( nome ), veiculos ( marca, modelo, placa )')
+        .neq('status', 'Concluído')
+        .neq('status', 'Cancelado');
+
+      if (!erroHoje && agHoje) {
+        const doDia = agHoje.filter(ag => ehHoje(ag.data_hora));
+        if (doDia.length) {
+          blocos.push(`
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p class="font-semibold text-blue-800">⏰ Você tem ${doDia.length} agendamento(s) hoje</p>
+              <ul class="text-sm text-blue-700 mt-1 space-y-0.5">
+                ${doDia.map(ag => `<li>• ${formatarDataHora(ag.data_hora).split(', ')[1]} — ${ag.clientes?.nome ?? 'Cliente'} (${ag.veiculos ? ag.veiculos.placa : '-'})</li>`).join('')}
+              </ul>
+            </div>
+          `);
+          notificar('Agendamentos de hoje', `Você tem ${doDia.length} agendamento(s) hoje na oficina.`);
+        }
+      } else if (erroHoje) {
+        logSupabaseError('verificarAgendamentosHoje', erroHoje);
+      }
+
+      // Revisões vencendo nos próximos 7 dias (ou já vencidas)
+      const limite = new Date();
+      limite.setDate(limite.getDate() + 7);
+      const limiteISO = limite.toISOString().slice(0, 10);
+
+      const { data: revisoes, error: erroRevisao } = await supabase
+        .from('agendamentos')
+        .select('id, data_revisao, clientes ( nome, telefone ), veiculos ( marca, modelo, placa )')
+        .not('data_revisao', 'is', null)
+        .lte('data_revisao', limiteISO)
+        .order('data_revisao', { ascending: true });
+
+      if (!erroRevisao && revisoes && revisoes.length) {
+        blocos.push(`
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p class="font-semibold text-amber-800">🔔 ${revisoes.length} revisão(ões) próxima(s) ou vencida(s)</p>
+            <ul class="text-sm text-amber-700 mt-1 space-y-0.5">
+              ${revisoes.map(r => `<li>• ${formatarData(r.data_revisao)} — ${r.clientes?.nome ?? 'Cliente'} (${r.veiculos ? r.veiculos.placa : '-'})</li>`).join('')}
+            </ul>
+            <p class="text-xs text-amber-600 mt-1">Veja e edite revisões na página "Concluídos".</p>
+          </div>
+        `);
+      } else if (erroRevisao) {
+        logSupabaseError('verificarRevisoes', erroRevisao);
+      }
+
+      areaAlertas.innerHTML = blocos.join('');
+    }
+
+    // -----------------------------------------------------------------
     // Inicialização da página
     // -----------------------------------------------------------------
     (async function init() {
@@ -486,6 +552,7 @@
       renderItensOrcamento();
       await Promise.all([carregarClientes(), carregarServicos()]);
       await carregarAgendamentos();
+      await verificarAlertas();
     })();
   </script>
 
