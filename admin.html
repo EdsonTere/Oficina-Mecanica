@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Administração | Oficina Mecânica</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>🔧</text></svg>">
+</head>
+<body class="bg-gray-100 min-h-screen pb-20 md:pb-0">
+
+  <!-- NAV DESKTOP -->
+  <header class="hidden md:flex items-center justify-between bg-slate-900 text-white px-8 py-4 shadow-lg sticky top-0 z-40">
+    <div class="flex items-center gap-2 font-bold text-lg">
+      <span class="text-2xl">🔧</span>
+      <span>Oficina Mecânica</span>
+    </div>
+    <nav class="flex items-center gap-2">
+      <a href="index.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Painel</a>
+      <a href="clientes.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Clientes</a>
+      <a href="servicos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Serviços</a>
+      <a href="concluidos.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Concluídos</a>
+      <a href="admin.html" class="px-4 py-2 rounded-lg bg-amber-600 font-medium transition">⚙️ Admin</a>
+      <span class="text-xs text-slate-400 pl-3 pr-1 hidden lg:inline" id="usuario-logado"></span>
+      <button id="btn-sair" class="px-3 py-2 rounded-lg hover:bg-slate-700 text-slate-300 font-medium transition text-sm" title="Sair">Sair</button>
+    </nav>
+  </header>
+
+  <!-- CABEÇALHO MOBILE -->
+  <header class="md:hidden flex items-center gap-2 bg-slate-900 text-white px-5 py-4 shadow-lg sticky top-0 z-40">
+    <span class="text-2xl">🔧</span>
+    <span class="font-bold text-lg">Oficina Mecânica</span>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-6 pb-24 md:pb-6">
+
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-800">⚙️ Administração de Acessos</h1>
+      <p class="text-gray-500 text-sm">Veja quem tem acesso ao sistema e ative ou desative logins quando quiser.</p>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg p-3">
+      Para criar um novo acesso (novo cliente/usuário), vá no painel do Supabase em
+      <strong>Authentication &gt; Users &gt; Add user</strong> e cadastre o e-mail e senha dele.
+      O perfil aparecerá automaticamente aqui, já ativo.
+    </div>
+
+    <div id="lista-usuarios" class="space-y-3">
+      <p class="text-gray-400 text-sm">Carregando usuários...</p>
+    </div>
+
+  </main>
+
+  <!-- NAV MOBILE -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-white flex justify-around items-center py-2 shadow-2xl z-40 overflow-x-auto">
+    <a href="index.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg shrink-0">
+      <span class="text-xl">📋</span>
+      <span class="text-xs font-medium">Painel</span>
+    </a>
+    <a href="clientes.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg shrink-0">
+      <span class="text-xl">👤</span>
+      <span class="text-xs font-medium">Clientes</span>
+    </a>
+    <a href="servicos.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg shrink-0">
+      <span class="text-xl">🛠️</span>
+      <span class="text-xs font-medium">Serviços</span>
+    </a>
+    <a href="concluidos.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg shrink-0">
+      <span class="text-xl">✅</span>
+      <span class="text-xs font-medium">Concluídos</span>
+    </a>
+    <a href="admin.html" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg bg-slate-700 shrink-0">
+      <span class="text-xl">⚙️</span>
+      <span class="text-xs font-medium">Admin</span>
+    </a>
+  </nav>
+
+  <script type="module">
+    import { supabase, logSupabaseError, formatarDataHora, requireAdmin, configurarBarraUsuario } from './js/supabase.js';
+
+    const listaEl = document.getElementById('lista-usuarios');
+    let usuarioAtualId = null;
+
+    async function carregarUsuarios() {
+      listaEl.innerHTML = '<p class="text-gray-400 text-sm">Carregando usuários...</p>';
+
+      const { data, error } = await supabase
+        .from('perfis')
+        .select('user_id, email, ativo, is_admin, ultimo_login, created_at')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        logSupabaseError('carregarUsuarios', error);
+        listaEl.innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar usuários.</p>';
+        return;
+      }
+
+      if (!data.length) {
+        listaEl.innerHTML = '<p class="text-gray-400 text-sm">Nenhum usuário encontrado.</p>';
+        return;
+      }
+
+      listaEl.innerHTML = data.map(renderUsuario).join('');
+
+      document.querySelectorAll('.btn-toggle-ativo').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const userId = btn.dataset.id;
+          const novoStatus = btn.dataset.novoStatus === 'true';
+
+          if (userId === usuarioAtualId && !novoStatus) {
+            alert('Você não pode desativar o seu próprio acesso de administrador por aqui.');
+            return;
+          }
+
+          const acao = novoStatus ? 'ativar' : 'desativar';
+          if (!confirm(`Tem certeza que deseja ${acao} o acesso deste usuário?`)) return;
+
+          btn.disabled = true;
+          const { error } = await supabase.from('perfis').update({ ativo: novoStatus }).eq('user_id', userId);
+          btn.disabled = false;
+
+          if (error) {
+            logSupabaseError('atualizarAtivo', error);
+            alert('Erro ao atualizar o acesso. Verifique se você continua logado como administrador.');
+          } else {
+            await carregarUsuarios();
+          }
+        });
+      });
+    }
+
+    function renderUsuario(p) {
+      const statusBadge = p.ativo
+        ? '<span class="text-xs px-2 py-0.5 rounded-full border font-medium bg-green-100 text-green-800 border-green-300">Ativo</span>'
+        : '<span class="text-xs px-2 py-0.5 rounded-full border font-medium bg-red-100 text-red-800 border-red-300">Desativado</span>';
+
+      const adminBadge = p.is_admin
+        ? '<span class="text-xs px-2 py-0.5 rounded-full border font-medium bg-amber-100 text-amber-800 border-amber-300 ml-1">Administrador</span>'
+        : '';
+
+      return `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div class="flex items-center flex-wrap gap-1">
+              <span class="font-semibold text-zinc-800">${escapeHtml(p.email)}</span>
+              ${statusBadge}
+              ${adminBadge}
+            </div>
+            <p class="text-sm text-gray-500 mt-1">
+              Último login: ${p.ultimo_login ? formatarDataHora(p.ultimo_login) : 'nunca acessou'}
+            </p>
+            <p class="text-xs text-gray-400">Cadastrado em ${formatarDataHora(p.created_at)}</p>
+          </div>
+          <div class="shrink-0">
+            ${p.ativo
+              ? `<button data-id="${p.user_id}" data-novo-status="false" class="btn-toggle-ativo bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium px-4 py-2 rounded-lg transition w-full md:w-auto">Desativar acesso</button>`
+              : `<button data-id="${p.user_id}" data-novo-status="true" class="btn-toggle-ativo bg-green-100 hover:bg-green-200 text-green-700 text-sm font-medium px-4 py-2 rounded-lg transition w-full md:w-auto">Ativar acesso</button>`
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+
+    (async function init() {
+      const admin = await requireAdmin();
+      if (!admin) return; // não é admin, já foi redirecionado
+
+      usuarioAtualId = admin.id;
+      configurarBarraUsuario(admin);
+      await carregarUsuarios();
+    })();
+  </script>
+
+</body>
+</html>
