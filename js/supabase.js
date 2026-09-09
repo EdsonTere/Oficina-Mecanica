@@ -18,9 +18,10 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // =====================================================================
 
 // ---------------------------------------------------------------------
-// Garante que existe um usuário logado. Se não houver sessão ativa,
-// redireciona para a tela de login e interrompe a execução da página.
-// Use no início de cada página protegida:
+// Garante que existe um usuário logado E com acesso ativo. Se não
+// houver sessão, redireciona para o login. Se o usuário estiver
+// desativado pelo administrador, encerra a sessão e redireciona com
+// um aviso. Use no início de cada página protegida:
 //   const user = await requireAuth();
 //   if (!user) return; // já foi redirecionado
 // ---------------------------------------------------------------------
@@ -30,7 +31,53 @@ export async function requireAuth() {
     window.location.href = 'login.html';
     return null;
   }
+
+  const { data: perfil, error } = await supabase
+    .from('perfis')
+    .select('ativo, is_admin')
+    .eq('user_id', session.user.id)
+    .single();
+
+  if (error) {
+    logSupabaseError('verificarPerfil', error);
+    // Se não conseguimos confirmar o perfil, por segurança não deixa entrar.
+    await supabase.auth.signOut();
+    window.location.href = 'login.html?bloqueado=1';
+    return null;
+  }
+
+  if (!perfil.ativo) {
+    await supabase.auth.signOut();
+    window.location.href = 'login.html?bloqueado=1';
+    return null;
+  }
+
+  session.user.isAdmin = perfil.is_admin;
   return session.user;
+}
+
+// ---------------------------------------------------------------------
+// Garante que o usuário logado é administrador. Caso contrário, manda
+// de volta para o painel comum. Use no início de admin.html:
+//   const admin = await requireAdmin();
+//   if (!admin) return;
+// ---------------------------------------------------------------------
+export async function requireAdmin() {
+  const user = await requireAuth();
+  if (!user) return null;
+  if (!user.isAdmin) {
+    window.location.href = 'index.html';
+    return null;
+  }
+  return user;
+}
+
+// ---------------------------------------------------------------------
+// Registra o horário do login atual no perfil do usuário (para o
+// administrador acompanhar quem acessou e quando).
+// ---------------------------------------------------------------------
+export async function registrarUltimoLogin(userId) {
+  await supabase.from('perfis').update({ ultimo_login: new Date().toISOString() }).eq('user_id', userId);
 }
 
 // ---------------------------------------------------------------------
@@ -44,6 +91,8 @@ export async function logout() {
 // ---------------------------------------------------------------------
 // Liga o botão de "Sair" (se existir na página) e exibe o e-mail do
 // usuário logado em um elemento com id="usuario-logado" (se existir).
+// Também exibe o link de administração (id="nav-admin") somente se o
+// usuário logado for administrador.
 // ---------------------------------------------------------------------
 export function configurarBarraUsuario(user) {
   const btnSair = document.getElementById('btn-sair');
@@ -53,6 +102,10 @@ export function configurarBarraUsuario(user) {
   const emailEl = document.getElementById('usuario-logado');
   if (emailEl && user?.email) {
     emailEl.textContent = user.email;
+  }
+  const linkAdmin = document.getElementById('nav-admin');
+  if (linkAdmin) {
+    linkAdmin.classList.toggle('hidden', !user?.isAdmin);
   }
 }
 
@@ -85,6 +138,46 @@ export function formatarDataHora(isoString) {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+// ---------------------------------------------------------------------
+// Helper de formatação de data (sem hora) — usado no campo de revisão.
+// Espera uma data no formato "YYYY-MM-DD" (como vem do input type=date).
+// ---------------------------------------------------------------------
+export function formatarData(dataString) {
+  if (!dataString) return '-';
+  const [ano, mes, dia] = dataString.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+// ---------------------------------------------------------------------
+// Retorna true se a data/hora informada (ISO) cai no dia de hoje,
+// no fuso horário local do navegador.
+// ---------------------------------------------------------------------
+export function ehHoje(isoString) {
+  if (!isoString) return false;
+  const data = new Date(isoString);
+  const hoje = new Date();
+  return data.getFullYear() === hoje.getFullYear() &&
+    data.getMonth() === hoje.getMonth() &&
+    data.getDate() === hoje.getDate();
+}
+
+// ---------------------------------------------------------------------
+// Pede permissão de notificação do navegador (se ainda não foi
+// concedida/negada) e, se concedida, exibe uma notificação simples.
+// Funciona apenas enquanto o app está aberto no navegador/celular.
+// ---------------------------------------------------------------------
+export async function notificar(titulo, corpo) {
+  if (!('Notification' in window)) return;
+
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+
+  if (Notification.permission === 'granted') {
+    new Notification(titulo, { body: corpo, icon: undefined });
+  }
 }
 
 // ---------------------------------------------------------------------
