@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Redefinir Senha | Oficina Mecânica</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>🔧</text></svg>">
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center px-4">
+
+  <div class="w-full max-w-sm">
+
+    <div class="text-center mb-6">
+      <span class="text-4xl">🔧</span>
+      <h1 class="text-white text-xl font-bold mt-2">Oficina Mecânica</h1>
+      <p class="text-slate-400 text-sm">Defina sua nova senha de acesso.</p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 space-y-5">
+
+      <p id="msg-verificando" class="text-sm text-center text-gray-500">Verificando o link...</p>
+
+      <form id="form-nova-senha" class="space-y-4 hidden">
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Nova senha</label>
+          <input type="password" id="input-nova-senha" required minlength="6" autocomplete="new-password"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            placeholder="Mínimo 6 caracteres" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Confirme a nova senha</label>
+          <input type="password" id="input-confirmar-senha" required minlength="6" autocomplete="new-password"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            placeholder="Repita a senha" />
+        </div>
+
+        <button type="submit" id="btn-salvar-senha"
+          class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold py-2.5 rounded-lg transition">
+          Salvar nova senha
+        </button>
+      </form>
+
+      <p id="msg-resultado" class="text-sm text-center hidden"></p>
+
+      <p id="link-login" class="text-center hidden">
+        <a href="login.html" class="text-sm text-sky-600 hover:underline">Ir para o login</a>
+      </p>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { supabase, logSupabaseError } from './js/supabase.js';
+
+    const msgVerificando = document.getElementById('msg-verificando');
+    const formNovaSenha = document.getElementById('form-nova-senha');
+    const btnSalvar = document.getElementById('btn-salvar-senha');
+    const msgResultado = document.getElementById('msg-resultado');
+    const linkLogin = document.getElementById('link-login');
+    const inputNovaSenha = document.getElementById('input-nova-senha');
+    const inputConfirmarSenha = document.getElementById('input-confirmar-senha');
+
+    // -----------------------------------------------------------------
+    // O link do e-mail traz um token especial de recuperação. O próprio
+    // supabase-js detecta esse token na URL e cria uma sessão temporária
+    // (evento PASSWORD_RECOVERY), que só permite trocar a senha.
+    // -----------------------------------------------------------------
+    let sessaoValida = false;
+
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        sessaoValida = true;
+        msgVerificando.classList.add('hidden');
+        formNovaSenha.classList.remove('hidden');
+      }
+    });
+
+    // Caso o evento já tenha disparado antes deste script escutar, confere direto.
+    (async function verificarSessaoInicial() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && !sessaoValida) {
+        sessaoValida = true;
+        msgVerificando.classList.add('hidden');
+        formNovaSenha.classList.remove('hidden');
+      } else if (!session) {
+        setTimeout(() => {
+          if (!sessaoValida) {
+            msgVerificando.textContent = 'Link inválido ou expirado. Solicite um novo link na tela de login.';
+            msgVerificando.className = 'text-sm text-center text-red-600';
+          }
+        }, 2500);
+      }
+    })();
+
+    formNovaSenha.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (inputNovaSenha.value !== inputConfirmarSenha.value) {
+        msgResultado.textContent = 'As senhas não coincidem.';
+        msgResultado.className = 'text-sm text-center text-red-600';
+        msgResultado.classList.remove('hidden');
+        return;
+      }
+
+      btnSalvar.disabled = true;
+      btnSalvar.textContent = 'Salvando...';
+
+      const { error } = await supabase.auth.updateUser({ password: inputNovaSenha.value });
+
+      btnSalvar.disabled = false;
+      btnSalvar.textContent = 'Salvar nova senha';
+
+      if (error) {
+        logSupabaseError('atualizarSenha', error);
+        msgResultado.textContent = 'Erro ao salvar a nova senha. Tente novamente.';
+        msgResultado.className = 'text-sm text-center text-red-600';
+        msgResultado.classList.remove('hidden');
+      } else {
+        formNovaSenha.classList.add('hidden');
+        msgResultado.textContent = 'Senha atualizada com sucesso!';
+        msgResultado.className = 'text-sm text-center text-green-600';
+        msgResultado.classList.remove('hidden');
+        linkLogin.classList.remove('hidden');
+        await supabase.auth.signOut();
+      }
+    });
+  </script>
+
+</body>
+</html>
