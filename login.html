@@ -42,6 +42,27 @@
           class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold py-2.5 rounded-lg transition">
           Entrar
         </button>
+
+        <p class="text-center">
+          <button type="button" id="btn-esqueci" class="text-sm text-sky-600 hover:underline">Esqueci minha senha</button>
+        </p>
+      </form>
+
+      <form id="form-recuperar" class="space-y-4 hidden">
+        <p class="text-sm text-gray-500">Digite seu e-mail de login. Vamos enviar um link para você criar uma nova senha.</p>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">E-mail</label>
+          <input type="email" id="input-email-recuperar" required autocomplete="email"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            placeholder="voce@oficina.com" />
+        </div>
+        <button type="submit" id="btn-enviar-recuperacao"
+          class="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold py-2.5 rounded-lg transition">
+          Enviar link de recuperação
+        </button>
+        <p class="text-center">
+          <button type="button" id="btn-voltar-login" class="text-sm text-gray-500 hover:underline">← Voltar para o login</button>
+        </p>
       </form>
 
       <p id="msg-auth" class="text-sm text-center hidden"></p>
@@ -54,11 +75,52 @@
     import { supabase, logSupabaseError, registrarUltimoLogin } from './js/supabase.js';
 
     const form = document.getElementById('form-auth');
+    const formRecuperar = document.getElementById('form-recuperar');
     const btnSubmit = document.getElementById('btn-submit');
+    const btnEsqueci = document.getElementById('btn-esqueci');
+    const btnVoltarLogin = document.getElementById('btn-voltar-login');
+    const btnEnviarRecuperacao = document.getElementById('btn-enviar-recuperacao');
     const msgEl = document.getElementById('msg-auth');
     const msgBloqueioEl = document.getElementById('msg-bloqueio');
     const inputEmail = document.getElementById('input-email');
     const inputSenha = document.getElementById('input-senha');
+    const inputEmailRecuperar = document.getElementById('input-email-recuperar');
+
+    btnEsqueci.addEventListener('click', () => {
+      form.classList.add('hidden');
+      formRecuperar.classList.remove('hidden');
+      msgEl.classList.add('hidden');
+    });
+
+    btnVoltarLogin.addEventListener('click', () => {
+      formRecuperar.classList.add('hidden');
+      form.classList.remove('hidden');
+      msgEl.classList.add('hidden');
+    });
+
+    formRecuperar.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btnEnviarRecuperacao.disabled = true;
+      btnEnviarRecuperacao.textContent = 'Enviando...';
+      msgEl.classList.add('hidden');
+
+      const email = inputEmailRecuperar.value.trim();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/redefinir-senha.html`,
+      });
+
+      btnEnviarRecuperacao.disabled = false;
+      btnEnviarRecuperacao.textContent = 'Enviar link de recuperação';
+
+      if (error) {
+        logSupabaseError('resetPassword', error);
+        msgEl.textContent = 'Não foi possível enviar o e-mail. Tente novamente.';
+        msgEl.className = 'text-sm text-center text-red-600';
+      } else {
+        msgEl.textContent = 'Link enviado! Verifique sua caixa de entrada (e o spam).';
+        msgEl.className = 'text-sm text-center text-green-600';
+      }
+    });
 
     // -----------------------------------------------------------------
     // Se veio de um redirecionamento por bloqueio de acesso, avisa.
