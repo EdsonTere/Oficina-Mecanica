@@ -66,7 +66,7 @@
           </div>
         </fieldset>
 
-        <fieldset class="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 border border-gray-200 rounded-lg p-4">
+        <fieldset class="md:col-span-2 grid grid-cols-2 md:grid-cols-5 gap-4 border border-gray-200 rounded-lg p-4">
           <legend class="text-sm font-semibold text-gray-500 px-1">Primeiro Veículo</legend>
 
           <div>
@@ -90,6 +90,12 @@
           <div>
             <label class="block text-sm font-medium text-gray-600 mb-1">Ano</label>
             <input type="number" id="input-ano" placeholder="2020" min="1950" max="2100"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">KM atual</label>
+            <input type="number" id="input-km" placeholder="Ex: 45000" min="0"
               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
           </div>
         </fieldset>
@@ -139,6 +145,38 @@
     </a>
   </nav>
 
+  <!-- MODAL DE DETALHES DO CLIENTE -->
+  <div id="modal-cliente" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 md:p-6 space-y-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-zinc-800">Detalhes do Cliente</h2>
+        <button id="btn-fechar-modal" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
+      </div>
+
+      <div id="modal-dados-cliente"></div>
+
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-semibold text-gray-500">Veículos</h3>
+          <button id="btn-modal-add-veiculo" class="text-xs text-sky-600 hover:underline">+ Adicionar veículo</button>
+        </div>
+
+        <div id="modal-form-novo-veiculo" class="hidden grid grid-cols-2 gap-2 text-sm border border-gray-200 rounded-lg p-3 mb-3">
+          <input id="modal-novo-marca" placeholder="Marca" class="border border-gray-300 rounded-lg px-2 py-1.5" />
+          <input id="modal-novo-modelo" placeholder="Modelo" class="border border-gray-300 rounded-lg px-2 py-1.5" />
+          <input id="modal-novo-placa" placeholder="Placa" maxlength="8" class="border border-gray-300 rounded-lg px-2 py-1.5 uppercase" />
+          <input id="modal-novo-ano" type="number" placeholder="Ano" class="border border-gray-300 rounded-lg px-2 py-1.5" />
+          <input id="modal-novo-km" type="number" placeholder="KM atual" class="border border-gray-300 rounded-lg px-2 py-1.5 col-span-2" />
+          <button id="btn-salvar-novo-veiculo" class="col-span-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+            Salvar veículo
+          </button>
+        </div>
+
+        <div id="modal-lista-veiculos" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { supabase, logSupabaseError, requireAuth, configurarBarraUsuario } from './js/supabase.js';
 
@@ -153,6 +191,10 @@
 
     inputPlaca.addEventListener('input', () => {
       inputPlaca.value = inputPlaca.value.toUpperCase();
+    });
+
+    document.getElementById('modal-novo-placa').addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase();
     });
 
     // -----------------------------------------------------------------
@@ -171,6 +213,7 @@
       const modelo = document.getElementById('input-modelo').value.trim();
       const placa = inputPlaca.value.trim();
       const ano = document.getElementById('input-ano').value || null;
+      const km = document.getElementById('input-km').value || null;
 
       try {
         // 1. Cria o cliente
@@ -185,7 +228,7 @@
         // 2. Cria o veículo vinculado ao cliente recém-criado
         const { error: erroVeiculo } = await supabase
           .from('veiculos')
-          .insert({ cliente_id: clienteInserido.id, marca, modelo, placa, ano });
+          .insert({ cliente_id: clienteInserido.id, marca, modelo, placa, ano, km });
 
         if (erroVeiculo) throw erroVeiculo;
 
@@ -215,7 +258,7 @@
 
       const { data, error } = await supabase
         .from('clientes')
-        .select('id, nome, telefone, cpf, veiculos ( id, marca, modelo, placa, ano )')
+        .select('id, nome, telefone, cpf, veiculos ( id, marca, modelo, placa, ano, km )')
         .order('nome');
 
       if (error) {
@@ -238,7 +281,7 @@
       }
 
       listaEl.innerHTML = lista.map(cliente => `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-2">
+        <div class="cliente-card bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-2 cursor-pointer hover:shadow-md hover:border-sky-300 transition" data-cliente-id="${cliente.id}">
           <div class="flex items-start justify-between gap-2">
             <div>
               <p class="font-semibold text-zinc-800">${escapeHtml(cliente.nome)}</p>
@@ -253,18 +296,28 @@
             ${cliente.veiculos.length
               ? cliente.veiculos.map(v => `
                   <span class="text-xs bg-slate-100 text-slate-700 border border-slate-300 px-2 py-1 rounded-full font-medium">
-                    🚗 ${escapeHtml(v.marca)} ${escapeHtml(v.modelo)} • ${escapeHtml(v.placa)}${v.ano ? ' (' + v.ano + ')' : ''}
+                    🚗 ${escapeHtml(v.marca)} ${escapeHtml(v.modelo)} • ${escapeHtml(v.placa)}${v.ano ? ' (' + v.ano + ')' : ''}${v.km != null ? ' • ' + Number(v.km).toLocaleString('pt-BR') + ' km' : ''}
                   </span>
                 `).join('')
               : '<span class="text-xs text-gray-400 italic">Nenhum veículo cadastrado</span>'
             }
           </div>
+          <p class="text-xs text-sky-600 pt-1">👁️ Toque para ver detalhes</p>
         </div>
       `).join('');
 
+      // Abre o modal de detalhes ao clicar no card (exceto no botão de excluir)
+      document.querySelectorAll('.cliente-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const cliente = clientesCache.find(c => c.id === Number(card.dataset.clienteId));
+          if (cliente) abrirModalCliente(cliente);
+        });
+      });
+
       // Liga os botões de exclusão
       document.querySelectorAll('.btn-excluir-cliente').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
           if (!confirm('Excluir este cliente? Os veículos vinculados também serão removidos.')) return;
           const { error } = await supabase.from('clientes').delete().eq('id', btn.dataset.id);
           if (error) {
@@ -298,6 +351,214 @@
       div.textContent = str ?? '';
       return div.innerHTML;
     }
+
+    // =====================================================================
+    // MODAL DE DETALHES DO CLIENTE
+    // =====================================================================
+    let clienteModalAtual = null;
+    const modalEl = document.getElementById('modal-cliente');
+    const btnFecharModal = document.getElementById('btn-fechar-modal');
+    const btnModalAddVeiculo = document.getElementById('btn-modal-add-veiculo');
+    const formNovoVeiculo = document.getElementById('modal-form-novo-veiculo');
+    const btnSalvarNovoVeiculo = document.getElementById('btn-salvar-novo-veiculo');
+
+    function abrirModalCliente(cliente) {
+      clienteModalAtual = cliente;
+      formNovoVeiculo.classList.add('hidden');
+      renderModalCliente();
+      modalEl.classList.remove('hidden');
+      modalEl.classList.add('flex');
+    }
+
+    function fecharModalCliente() {
+      modalEl.classList.add('hidden');
+      modalEl.classList.remove('flex');
+      clienteModalAtual = null;
+    }
+
+    btnFecharModal.addEventListener('click', fecharModalCliente);
+    modalEl.addEventListener('click', (e) => {
+      if (e.target === modalEl) fecharModalCliente(); // clicou fora da caixa branca
+    });
+
+    // Recarrega a lista de clientes e sincroniza o cliente aberto no modal
+    async function recarregarERefletirModal() {
+      await carregarClientes();
+      if (clienteModalAtual) {
+        const atualizado = clientesCache.find(c => c.id === clienteModalAtual.id);
+        if (atualizado) {
+          clienteModalAtual = atualizado;
+          renderModalCliente();
+        } else {
+          fecharModalCliente();
+        }
+      }
+    }
+
+    function renderModalCliente() {
+      const c = clienteModalAtual;
+      document.getElementById('modal-dados-cliente').innerHTML = `
+        <div class="dados-exibicao space-y-1">
+          <p class="font-semibold text-zinc-800 text-lg">${escapeHtml(c.nome)}</p>
+          <p class="text-sm text-gray-500">${c.telefone ? '📞 ' + escapeHtml(c.telefone) : 'Sem telefone cadastrado'}</p>
+          <p class="text-sm text-gray-400">${c.cpf ? 'CPF: ' + escapeHtml(c.cpf) : 'Sem CPF cadastrado'}</p>
+          <button id="btn-editar-dados-cliente" class="text-xs text-sky-600 hover:underline mt-1">Editar dados do cliente</button>
+        </div>
+        <div class="dados-form hidden space-y-2 mt-2 border-t border-gray-100 pt-3">
+          <input id="modal-input-nome" value="${escapeHtml(c.nome)}" placeholder="Nome"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <input id="modal-input-telefone" value="${escapeHtml(c.telefone ?? '')}" placeholder="Telefone"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <input id="modal-input-cpf" value="${escapeHtml(c.cpf ?? '')}" placeholder="CPF"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <button id="btn-salvar-dados-cliente" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+            Salvar dados
+          </button>
+        </div>
+      `;
+
+      document.getElementById('btn-editar-dados-cliente').addEventListener('click', () => {
+        document.querySelector('#modal-dados-cliente .dados-exibicao').classList.add('hidden');
+        document.querySelector('#modal-dados-cliente .dados-form').classList.remove('hidden');
+      });
+
+      document.getElementById('btn-salvar-dados-cliente').addEventListener('click', async () => {
+        const nome = document.getElementById('modal-input-nome').value.trim();
+        const telefone = document.getElementById('modal-input-telefone').value.trim() || null;
+        const cpf = document.getElementById('modal-input-cpf').value.trim() || null;
+
+        const { error } = await supabase.from('clientes').update({ nome, telefone, cpf }).eq('id', c.id);
+        if (error) {
+          logSupabaseError('editarCliente', error);
+          alert('Erro ao salvar dados do cliente.');
+          return;
+        }
+        await recarregarERefletirModal();
+      });
+
+      renderVeiculosModal();
+    }
+
+    function renderVeiculosModal() {
+      const c = clienteModalAtual;
+      const el = document.getElementById('modal-lista-veiculos');
+
+      if (!c.veiculos.length) {
+        el.innerHTML = '<p class="text-sm text-gray-400 italic">Nenhum veículo cadastrado.</p>';
+        return;
+      }
+
+      el.innerHTML = c.veiculos.map(v => `
+        <div class="border border-gray-200 rounded-lg p-3" data-veiculo-id="${v.id}">
+          <div class="veiculo-exibicao flex items-center justify-between gap-2">
+            <div class="text-sm">
+              <p class="font-medium text-zinc-800">${escapeHtml(v.marca)} ${escapeHtml(v.modelo)} ${v.ano ? '(' + v.ano + ')' : ''}</p>
+              <p class="text-gray-500">Placa: ${escapeHtml(v.placa)} • KM: ${v.km != null ? Number(v.km).toLocaleString('pt-BR') : 'não informado'}</p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button class="btn-editar-veiculo text-xs text-sky-600 hover:underline">Editar</button>
+              <button class="btn-excluir-veiculo text-xs text-red-500 hover:underline">Excluir</button>
+            </div>
+          </div>
+          <div class="veiculo-form hidden grid grid-cols-2 gap-2 text-sm mt-2 pt-2 border-t border-gray-100">
+            <input class="v-marca border border-gray-300 rounded-lg px-2 py-1.5" value="${escapeHtml(v.marca)}" placeholder="Marca" />
+            <input class="v-modelo border border-gray-300 rounded-lg px-2 py-1.5" value="${escapeHtml(v.modelo)}" placeholder="Modelo" />
+            <input class="v-placa border border-gray-300 rounded-lg px-2 py-1.5 uppercase" value="${escapeHtml(v.placa)}" placeholder="Placa" maxlength="8" />
+            <input class="v-ano border border-gray-300 rounded-lg px-2 py-1.5" type="number" value="${v.ano ?? ''}" placeholder="Ano" />
+            <input class="v-km border border-gray-300 rounded-lg px-2 py-1.5 col-span-2" type="number" value="${v.km ?? ''}" placeholder="KM atual" />
+            <button class="btn-salvar-veiculo col-span-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+              Salvar veículo
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.btn-editar-veiculo').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('[data-veiculo-id]');
+          card.querySelector('.veiculo-exibicao').classList.add('hidden');
+          card.querySelector('.veiculo-form').classList.remove('hidden');
+        });
+      });
+
+      el.querySelectorAll('.btn-excluir-veiculo').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const card = btn.closest('[data-veiculo-id]');
+          if (!confirm('Excluir este veículo?')) return;
+          const { error } = await supabase.from('veiculos').delete().eq('id', card.dataset.veiculoId);
+          if (error) {
+            logSupabaseError('excluirVeiculo', error);
+            alert('Erro ao excluir veículo.');
+            return;
+          }
+          await recarregarERefletirModal();
+        });
+      });
+
+      el.querySelectorAll('.btn-salvar-veiculo').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const card = btn.closest('[data-veiculo-id]');
+          const marca = card.querySelector('.v-marca').value.trim();
+          const modelo = card.querySelector('.v-modelo').value.trim();
+          const placa = card.querySelector('.v-placa').value.trim().toUpperCase();
+          const ano = card.querySelector('.v-ano').value || null;
+          const km = card.querySelector('.v-km').value || null;
+
+          btn.disabled = true;
+          btn.textContent = 'Salvando...';
+          const { error } = await supabase.from('veiculos').update({ marca, modelo, placa, ano, km }).eq('id', card.dataset.veiculoId);
+          btn.disabled = false;
+          btn.textContent = 'Salvar veículo';
+
+          if (error) {
+            logSupabaseError('editarVeiculo', error);
+            alert(error.code === '23505' ? 'Já existe outro veículo com essa placa.' : 'Erro ao salvar veículo.');
+            return;
+          }
+          await recarregarERefletirModal();
+        });
+      });
+    }
+
+    // Adicionar novo veículo a um cliente já existente, direto pelo modal
+    btnModalAddVeiculo.addEventListener('click', () => {
+      formNovoVeiculo.classList.toggle('hidden');
+    });
+
+    btnSalvarNovoVeiculo.addEventListener('click', async () => {
+      const marca = document.getElementById('modal-novo-marca').value.trim();
+      const modelo = document.getElementById('modal-novo-modelo').value.trim();
+      const placa = document.getElementById('modal-novo-placa').value.trim().toUpperCase();
+      const ano = document.getElementById('modal-novo-ano').value || null;
+      const km = document.getElementById('modal-novo-km').value || null;
+
+      if (!marca || !modelo || !placa) {
+        alert('Preencha ao menos marca, modelo e placa.');
+        return;
+      }
+
+      btnSalvarNovoVeiculo.disabled = true;
+      btnSalvarNovoVeiculo.textContent = 'Salvando...';
+      const { error } = await supabase.from('veiculos').insert({
+        cliente_id: clienteModalAtual.id, marca, modelo, placa, ano, km,
+      });
+      btnSalvarNovoVeiculo.disabled = false;
+      btnSalvarNovoVeiculo.textContent = 'Salvar veículo';
+
+      if (error) {
+        logSupabaseError('adicionarVeiculoModal', error);
+        alert(error.code === '23505' ? 'Já existe um veículo cadastrado com essa placa.' : 'Erro ao adicionar veículo.');
+        return;
+      }
+
+      document.getElementById('modal-novo-marca').value = '';
+      document.getElementById('modal-novo-modelo').value = '';
+      document.getElementById('modal-novo-placa').value = '';
+      document.getElementById('modal-novo-ano').value = '';
+      document.getElementById('modal-novo-km').value = '';
+      formNovoVeiculo.classList.add('hidden');
+      await recarregarERefletirModal();
+    });
 
     // Inicialização
     (async function init() {
