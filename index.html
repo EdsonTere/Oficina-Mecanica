@@ -50,7 +50,10 @@
 
     <!-- FORM NOVO AGENDAMENTO -->
     <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-6">
-      <h2 class="text-lg font-semibold text-zinc-800 mb-4">Novo Agendamento</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="titulo-form-agendamento" class="text-lg font-semibold text-zinc-800">Novo Agendamento</h2>
+        <button type="button" id="btn-cancelar-edicao" class="hidden text-sm text-gray-500 hover:underline">✕ Cancelar edição</button>
+      </div>
       <form id="form-agendamento" class="space-y-5">
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -170,6 +173,11 @@
 
     let servicosCache = [];
     let itensOrcamento = []; // itens sendo montados no formulário atual: {servico_id, descricao, preco, quantidade}
+    let editandoId = null; // id do agendamento em edição, ou null se for um novo agendamento
+    let agendamentosCache = []; // últimos agendamentos carregados, usados para preencher a edição
+
+    const tituloForm = document.getElementById('titulo-form-agendamento');
+    const btnCancelarEdicao = document.getElementById('btn-cancelar-edicao');
 
     const selectCliente = document.getElementById('select-cliente');
     const selectVeiculo = document.getElementById('select-veiculo');
@@ -213,10 +221,10 @@
     }
 
     // -----------------------------------------------------------------
-    // Ao trocar cliente -> filtra veículos daquele cliente
+    // Carrega os veículos de um cliente específico no select de veículo.
+    // Reutilizada tanto pelo evento de troca de cliente quanto pela edição.
     // -----------------------------------------------------------------
-    selectCliente.addEventListener('change', async () => {
-      const clienteId = selectCliente.value;
+    async function carregarVeiculosDoCliente(clienteId, veiculoParaSelecionar = null) {
       selectVeiculo.innerHTML = '<option value="">Carregando veículos...</option>';
       selectVeiculo.disabled = true;
 
@@ -245,7 +253,13 @@
       selectVeiculo.disabled = false;
       selectVeiculo.innerHTML = '<option value="">Selecione um veículo...</option>' +
         data.map(v => `<option value="${v.id}">${v.marca} ${v.modelo} - ${v.placa}</option>`).join('');
-    });
+
+      if (veiculoParaSelecionar) {
+        selectVeiculo.value = veiculoParaSelecionar;
+      }
+    }
+
+    selectCliente.addEventListener('change', () => carregarVeiculosDoCliente(selectCliente.value));
 
     // -----------------------------------------------------------------
     // Adiciona um item (serviço) à lista do orçamento em construção
@@ -306,7 +320,7 @@
     }
 
     // -----------------------------------------------------------------
-    // Envio do formulário de agendamento
+    // Envio do formulário: cria um novo agendamento OU salva edição
     // -----------------------------------------------------------------
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -317,7 +331,7 @@
       }
 
       btnSalvar.disabled = true;
-      btnSalvar.textContent = 'Salvando...';
+      btnSalvar.textContent = editandoId ? 'Salvando alterações...' : 'Salvando...';
       msgEl.classList.add('hidden');
 
       const payloadAgendamento = {
@@ -325,20 +339,41 @@
         veiculo_id: Number(selectVeiculo.value),
         data_hora: new Date(document.getElementById('input-data-hora').value).toISOString(),
         observacoes: document.getElementById('input-observacoes').value || null,
-        status: 'Pendente',
       };
 
       try {
-        const { data: agendamentoInserido, error: erroAgendamento } = await supabase
-          .from('agendamentos')
-          .insert(payloadAgendamento)
-          .select()
-          .single();
+        let agendamentoId;
 
-        if (erroAgendamento) throw erroAgendamento;
+        if (editandoId) {
+          // Atualiza os dados do agendamento (não mexe no status atual)
+          const { error: erroUpdate } = await supabase
+            .from('agendamentos')
+            .update(payloadAgendamento)
+            .eq('id', editandoId);
+          if (erroUpdate) throw erroUpdate;
+
+          agendamentoId = editandoId;
+
+          // Remove os itens antigos para substituir pelos atuais
+          const { error: erroDelItens } = await supabase
+            .from('agendamento_servicos')
+            .delete()
+            .eq('agendamento_id', agendamentoId);
+          if (erroDelItens) throw erroDelItens;
+
+        } else {
+          const { data: agendamentoInserido, error: erroAgendamento } = await supabase
+            .from('agendamentos')
+            .insert({ ...payloadAgendamento, status: 'Pendente' })
+            .select()
+            .single();
+          if (erroAgendamento) throw erroAgendamento;
+
+          agendamentoId = agendamentoInserido.id;
+        }
 
         const linhasItens = itensOrcamento.map(item => ({
-          agendamento_id: agendamentoInserido.id,
+          agendamento_id: agendamentoId,
           servico_id: item.servico_id,
           quantidade: item.quantidade,
           preco_unitario: item.preco,
@@ -347,29 +382,77 @@
         const { error: erroItens } = await supabase.from('agendamento_servicos').insert(linhasItens);
 
         if (erroItens) {
-          // desfaz o agendamento criado, já que os itens falharam
-          await supabase.from('agendamentos').delete().eq('id', agendamentoInserido.id);
+          // se estivéssemos criando um novo, desfaz o agendamento criado
+          if (!editandoId) await supabase.from('agendamentos').delete().eq('id', agendamentoId);
           throw erroItens;
         }
 
-        msgEl.textContent = 'Agendamento criado com sucesso!';
+        msgEl.textContent = editandoId ? 'Agendamento atualizado com sucesso!' : 'Agendamento criado com sucesso!';
         msgEl.className = 'text-sm mt-3 text-green-600';
-        form.reset();
-        itensOrcamento = [];
-        renderItensOrcamento();
-        selectVeiculo.innerHTML = '<option value="">Selecione o cliente primeiro...</option>';
-        selectVeiculo.disabled = true;
+        cancelarEdicao();
         await carregarAgendamentos();
 
       } catch (error) {
-        logSupabaseError('inserirAgendamento', error);
+        logSupabaseError('salvarAgendamento', error);
         msgEl.textContent = 'Erro ao salvar agendamento. Tente novamente.';
         msgEl.className = 'text-sm mt-3 text-red-600';
       } finally {
         btnSalvar.disabled = false;
-        btnSalvar.textContent = 'Agendar';
+        btnSalvar.textContent = editandoId ? 'Salvar Alterações' : 'Agendar';
       }
     });
+
+    // -----------------------------------------------------------------
+    // Converte um ISO datetime para o formato aceito pelo input datetime-local
+    // -----------------------------------------------------------------
+    function isoParaDatetimeLocal(iso) {
+      const d = new Date(iso);
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // -----------------------------------------------------------------
+    // Carrega os dados de um agendamento existente no formulário para edição
+    // -----------------------------------------------------------------
+    async function editarAgendamento(ag) {
+      editandoId = ag.id;
+      tituloForm.textContent = 'Editar Agendamento';
+      btnSalvar.textContent = 'Salvar Alterações';
+      btnCancelarEdicao.classList.remove('hidden');
+
+      selectCliente.value = ag.cliente_id;
+      await carregarVeiculosDoCliente(ag.cliente_id, ag.veiculo_id);
+
+      document.getElementById('input-data-hora').value = isoParaDatetimeLocal(ag.data_hora);
+      document.getElementById('input-observacoes').value = ag.observacoes ?? '';
+
+      itensOrcamento = (ag.agendamento_servicos || []).map(item => ({
+        servico_id: item.servico_id,
+        descricao: item.servicos?.descricao ?? 'Serviço',
+        preco: item.preco_unitario,
+        quantidade: item.quantidade,
+      }));
+      renderItensOrcamento();
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // -----------------------------------------------------------------
+    // Cancela o modo de edição e volta o formulário ao estado de "novo"
+    // -----------------------------------------------------------------
+    function cancelarEdicao() {
+      editandoId = null;
+      tituloForm.textContent = 'Novo Agendamento';
+      btnSalvar.textContent = 'Agendar';
+      btnCancelarEdicao.classList.add('hidden');
+      form.reset();
+      itensOrcamento = [];
+      renderItensOrcamento();
+      selectVeiculo.innerHTML = '<option value="">Selecione o cliente primeiro...</option>';
+      selectVeiculo.disabled = true;
+    }
+
+    btnCancelarEdicao.addEventListener('click', cancelarEdicao);
 
     // -----------------------------------------------------------------
     // Carrega e renderiza a lista de agendamentos (exclui "Concluído")
@@ -380,10 +463,10 @@
       const { data, error } = await supabase
         .from('agendamentos')
         .select(`
-          id, data_hora, status, observacoes,
+          id, cliente_id, veiculo_id, data_hora, status, observacoes,
           clientes ( nome, telefone ),
           veiculos ( marca, modelo, placa ),
-          agendamento_servicos ( quantidade, preco_unitario, servicos ( descricao ) )
+          agendamento_servicos ( servico_id, quantidade, preco_unitario, servicos ( descricao ) )
         `)
         .neq('status', 'Concluído')
         .order('data_hora', { ascending: true });
@@ -399,7 +482,15 @@
         return;
       }
 
+      agendamentosCache = data;
       listaEl.innerHTML = data.map(renderAgendamento).join('');
+
+      document.querySelectorAll('.btn-editar-agendamento').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const ag = agendamentosCache.find(a => a.id === Number(btn.dataset.id));
+          if (ag) editarAgendamento(ag);
+        });
+      });
 
       document.querySelectorAll('.select-status').forEach(sel => {
         sel.addEventListener('change', async (e) => {
@@ -457,10 +548,15 @@
                 </select>
               </div>
               <div class="flex gap-2">
+                <button data-id="${ag.id}" class="btn-editar-agendamento flex-1 text-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium transition">
+                  ✏️ Editar
+                </button>
                 <a href="orcamento.html?id=${ag.id}" target="_blank"
                   class="flex-1 text-center text-xs bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg font-medium transition">
                   🧾 Orçamento
                 </a>
+              </div>
+              <div class="flex gap-2">
                 ${linkWhatsApp
                   ? `<a href="${linkWhatsApp}" target="_blank" class="flex-1 text-center text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-medium transition">📲 WhatsApp</a>`
                   : `<span class="flex-1 text-center text-xs bg-gray-200 text-gray-400 px-3 py-2 rounded-lg font-medium" title="Cliente sem telefone cadastrado">📲 WhatsApp</span>`
