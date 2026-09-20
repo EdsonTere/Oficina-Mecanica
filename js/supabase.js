@@ -34,7 +34,7 @@ export async function requireAuth() {
 
   const { data: perfil, error } = await supabase
     .from('perfis')
-    .select('ativo, is_admin')
+    .select('ativo, is_admin, nome_oficina')
     .eq('user_id', session.user.id)
     .single();
 
@@ -53,6 +53,7 @@ export async function requireAuth() {
   }
 
   session.user.isAdmin = perfil.is_admin;
+  session.user.nomeOficina = perfil.nome_oficina;
   return session.user;
 }
 
@@ -107,6 +108,12 @@ export function configurarBarraUsuario(user) {
   if (linkAdmin) {
     linkAdmin.classList.toggle('hidden', !user?.isAdmin);
   }
+
+  // Troca "Oficina Mecânica" pelo nome personalizado da oficina, se houver.
+  const nomeExibido = user?.nomeOficina?.trim() || 'Oficina Mecânica';
+  document.querySelectorAll('.nome-oficina-exibido').forEach(el => {
+    el.textContent = nomeExibido;
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -179,7 +186,6 @@ export async function notificar(titulo, corpo) {
     new Notification(titulo, { body: corpo, icon: undefined });
   }
 }
-
 // ---------------------------------------------------------------------
 // Calcula o valor total de uma lista de itens de agendamento_servicos
 // Espera um array de objetos com { quantidade, preco_unitario }
