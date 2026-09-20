@@ -13,7 +13,7 @@
   <header class="hidden md:flex items-center justify-between bg-slate-900 text-white px-8 py-4 shadow-lg sticky top-0 z-40">
     <div class="flex items-center gap-2 font-bold text-lg">
       <span class="text-2xl">🔧</span>
-      <span>Oficina Mecânica</span>
+      <span class="nome-oficina-exibido">Oficina Mecânica</span>
     </div>
     <nav class="flex items-center gap-2">
       <a href="index.html" class="px-4 py-2 rounded-lg hover:bg-slate-700 font-medium transition">Painel</a>
@@ -30,7 +30,7 @@
   <!-- CABEÇALHO MOBILE -->
   <header class="md:hidden flex items-center gap-2 bg-slate-900 text-white px-5 py-4 shadow-lg sticky top-0 z-40">
     <span class="text-2xl">🔧</span>
-    <span class="font-bold text-lg">Oficina Mecânica</span>
+    <span class="font-bold text-lg nome-oficina-exibido">Oficina Mecânica</span>
   </header>
 
   <main class="max-w-md mx-auto px-4 md:px-8 py-6 space-y-6">
@@ -39,6 +39,20 @@
       <h1 class="text-2xl font-bold text-zinc-800">🔑 Minha Conta</h1>
       <p class="text-gray-500 text-sm">Logado como <strong id="email-atual"></strong></p>
     </div>
+
+    <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-6">
+      <h2 class="text-lg font-semibold text-zinc-800 mb-4">Nome da Oficina</h2>
+      <p class="text-sm text-gray-500 mb-3">Esse nome aparece no topo do sistema no lugar de "Oficina Mecânica", só para você.</p>
+      <form id="form-nome-oficina" class="flex flex-col md:flex-row gap-3">
+        <input type="text" id="input-nome-oficina" placeholder="Ex: Oficina do Manoel"
+          class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+        <button type="submit" id="btn-salvar-nome-oficina"
+          class="bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-semibold px-6 py-2.5 rounded-lg transition w-full md:w-auto">
+          Salvar
+        </button>
+      </form>
+      <p id="msg-nome-oficina" class="text-sm mt-3 hidden"></p>
+    </section>
 
     <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-6">
       <h2 class="text-lg font-semibold text-zinc-800 mb-4">Trocar senha</h2>
@@ -99,6 +113,39 @@
     const inputConfirmarSenha = document.getElementById('input-confirmar-senha');
     const emailAtualEl = document.getElementById('email-atual');
 
+    const formNomeOficina = document.getElementById('form-nome-oficina');
+    const inputNomeOficina = document.getElementById('input-nome-oficina');
+    const btnSalvarNomeOficina = document.getElementById('btn-salvar-nome-oficina');
+    const msgNomeOficina = document.getElementById('msg-nome-oficina');
+
+    formNomeOficina.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btnSalvarNomeOficina.disabled = true;
+      btnSalvarNomeOficina.textContent = 'Salvando...';
+      msgNomeOficina.classList.add('hidden');
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const nomeOficina = inputNomeOficina.value.trim() || null;
+
+      const { error } = await supabase.from('perfis').update({ nome_oficina: nomeOficina }).eq('user_id', user.id);
+
+      btnSalvarNomeOficina.disabled = false;
+      btnSalvarNomeOficina.textContent = 'Salvar';
+
+      if (error) {
+        logSupabaseError('salvarNomeOficina', error);
+        msgNomeOficina.textContent = 'Erro ao salvar o nome da oficina.';
+        msgNomeOficina.className = 'text-sm mt-3 text-red-600';
+      } else {
+        msgNomeOficina.textContent = 'Nome atualizado! O topo do sistema já foi atualizado.';
+        msgNomeOficina.className = 'text-sm mt-3 text-green-600';
+        document.querySelectorAll('.nome-oficina-exibido').forEach(el => {
+          el.textContent = nomeOficina || 'Oficina Mecânica';
+        });
+      }
+      msgNomeOficina.classList.remove('hidden');
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       msgEl.classList.add('hidden');
@@ -136,6 +183,7 @@
 
       configurarBarraUsuario(user);
       emailAtualEl.textContent = user.email;
+      inputNomeOficina.value = user.nomeOficina ?? '';
     })();
   </script>
 
