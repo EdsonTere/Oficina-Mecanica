@@ -67,7 +67,7 @@ export async function requireAdmin() {
   const user = await requireAuth();
   if (!user) return null;
   if (!user.isAdmin) {
-    window.location.href = 'index.html';
+    window.location.href = 'cliente.html';
     return null;
   }
   return user;
