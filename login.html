@@ -136,7 +136,7 @@
     // -----------------------------------------------------------------
     (async function verificarSessao() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) window.location.href = 'index.html';
+      if (session) window.location.href = 'clientes.html';
     })();
 
     form.addEventListener('submit', async (e) => {
@@ -164,7 +164,7 @@
         await registrarUltimoLogin(data.user.id);
       }
 
-      window.location.href = 'index.html';
+      window.location.href = 'clientes.html';
     });
   </script>
 
