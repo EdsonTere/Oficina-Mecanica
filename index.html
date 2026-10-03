@@ -113,9 +113,31 @@
           <div id="lista-itens-orcamento" class="mt-4 space-y-2">
             <p class="text-sm text-gray-400 italic">Nenhum serviço adicionado ainda.</p>
           </div>
+        </fieldset>
 
-          <div class="flex justify-end mt-3 pt-3 border-t border-gray-100">
-            <p class="text-base font-semibold text-zinc-800">Total: <span id="total-orcamento" class="text-sky-600">R$ 0,00</span></p>
+        <!-- DESCONTO -->
+        <fieldset class="border border-gray-200 rounded-lg p-4">
+          <legend class="text-sm font-semibold text-gray-500 px-1">Desconto (opcional)</legend>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Desconto (%)</label>
+              <input type="number" id="input-desconto-percentual" min="0" max="100" step="0.01" placeholder="0"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Desconto (R$)</label>
+              <input type="number" id="input-desconto-valor" min="0" step="0.01" placeholder="0,00"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+            </div>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-gray-100 text-sm space-y-1">
+            <p class="flex justify-between text-gray-500"><span>Subtotal:</span><span id="resumo-subtotal">R$ 0,00</span></p>
+            <p class="flex justify-between text-red-500"><span>Desconto:</span><span id="resumo-desconto">- R$ 0,00</span></p>
+            <p class="flex justify-between text-base font-semibold text-zinc-800 pt-1 border-t border-gray-100">
+              <span>Total a pagar:</span><span id="resumo-total-final" class="text-sky-600">R$ 0,00</span>
+            </p>
           </div>
         </fieldset>
 
@@ -169,7 +191,7 @@
   <!-- SCRIPT PRINCIPAL -->
   <!-- ============================================================ -->
   <script type="module">
-    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, formatarData, calcularTotalItens, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth, configurarBarraUsuario, ehHoje, notificar } from './js/supabase.js';
+    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, formatarData, calcularTotalItens, calcularTotalFinal, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth, configurarBarraUsuario, ehHoje, notificar } from './js/supabase.js';
 
     let servicosCache = [];
     let itensOrcamento = []; // itens sendo montados no formulário atual: {servico_id, descricao, preco, quantidade}
@@ -185,7 +207,11 @@
     const inputQtdItem = document.getElementById('input-qtd-item');
     const btnAddItem = document.getElementById('btn-add-item');
     const listaItensEl = document.getElementById('lista-itens-orcamento');
-    const totalOrcamentoEl = document.getElementById('total-orcamento');
+    const inputDescontoPercentual = document.getElementById('input-desconto-percentual');
+    const inputDescontoValor = document.getElementById('input-desconto-valor');
+    const resumoSubtotalEl = document.getElementById('resumo-subtotal');
+    const resumoDescontoEl = document.getElementById('resumo-desconto');
+    const resumoTotalFinalEl = document.getElementById('resumo-total-final');
     const form = document.getElementById('form-agendamento');
     const btnSalvar = document.getElementById('btn-salvar-agendamento');
     const msgEl = document.getElementById('msg-agendamento');
@@ -315,9 +341,62 @@
         });
       }
 
-      const total = calcularTotalItens(itensOrcamento.map(i => ({ quantidade: i.quantidade, preco_unitario: i.preco })));
-      totalOrcamentoEl.textContent = formatarMoeda(total);
+      recalcularDescontoAoMudarItens();
     }
+
+    // -----------------------------------------------------------------
+    // Retorna o subtotal (soma dos itens) do orçamento em construção
+    // -----------------------------------------------------------------
+    function getSubtotalItens() {
+      return calcularTotalItens(itensOrcamento.map(i => ({ quantidade: i.quantidade, preco_unitario: i.preco })));
+    }
+
+    // -----------------------------------------------------------------
+    // Atualiza o resumo financeiro (subtotal, desconto, total a pagar)
+    // com base nos valores atuais dos campos de desconto.
+    // -----------------------------------------------------------------
+    function atualizarResumoFinanceiro() {
+      const subtotal = getSubtotalItens();
+      const descontoValor = Math.min(Number(inputDescontoValor.value) || 0, subtotal);
+      const totalFinal = calcularTotalFinal(itensOrcamento.map(i => ({ quantidade: i.quantidade, preco_unitario: i.preco })), descontoValor);
+
+      resumoSubtotalEl.textContent = formatarMoeda(subtotal);
+      resumoDescontoEl.textContent = '- ' + formatarMoeda(descontoValor);
+      resumoTotalFinalEl.textContent = formatarMoeda(totalFinal);
+    }
+
+    // -----------------------------------------------------------------
+    // Quando os itens do orçamento mudam (adiciona/remove serviço), se
+    // já havia um percentual de desconto definido, recalcula o valor em
+    // reais correspondente ao novo subtotal.
+    // -----------------------------------------------------------------
+    function recalcularDescontoAoMudarItens() {
+      const subtotal = getSubtotalItens();
+      const pct = Number(inputDescontoPercentual.value) || 0;
+      if (pct > 0) {
+        const valor = subtotal * pct / 100;
+        inputDescontoValor.value = valor ? valor.toFixed(2) : '';
+      }
+      atualizarResumoFinanceiro();
+    }
+
+    // Ao digitar o desconto em %, calcula e preenche o campo em R$
+    inputDescontoPercentual.addEventListener('input', () => {
+      const subtotal = getSubtotalItens();
+      const pct = Number(inputDescontoPercentual.value) || 0;
+      const valor = subtotal > 0 ? (subtotal * pct / 100) : 0;
+      inputDescontoValor.value = valor ? valor.toFixed(2) : '';
+      atualizarResumoFinanceiro();
+    });
+
+    // Ao digitar o desconto em R$, calcula e preenche o campo em %
+    inputDescontoValor.addEventListener('input', () => {
+      const subtotal = getSubtotalItens();
+      const valor = Number(inputDescontoValor.value) || 0;
+      const pct = subtotal > 0 ? (valor / subtotal * 100) : 0;
+      inputDescontoPercentual.value = pct ? pct.toFixed(2) : '';
+      atualizarResumoFinanceiro();
+    });
 
     // -----------------------------------------------------------------
     // Envio do formulário: cria um novo agendamento OU salva edição
@@ -334,11 +413,14 @@
       btnSalvar.textContent = editandoId ? 'Salvando alterações...' : 'Salvando...';
       msgEl.classList.add('hidden');
 
+      const subtotalAtual = getSubtotalItens();
       const payloadAgendamento = {
         cliente_id: Number(selectCliente.value),
         veiculo_id: Number(selectVeiculo.value),
         data_hora: new Date(document.getElementById('input-data-hora').value).toISOString(),
         observacoes: document.getElementById('input-observacoes').value || null,
+        desconto_percentual: Number(inputDescontoPercentual.value) || 0,
+        desconto_valor: Math.min(Number(inputDescontoValor.value) || 0, subtotalAtual),
       };
 
       try {
@@ -434,6 +516,12 @@
       }));
       renderItensOrcamento();
 
+      // Preenche o desconto já salvo (feito depois do renderItensOrcamento
+      // para não deixar o recálculo automático sobrescrever os valores).
+      inputDescontoPercentual.value = ag.desconto_percentual ? ag.desconto_percentual : '';
+      inputDescontoValor.value = ag.desconto_valor ? ag.desconto_valor : '';
+      atualizarResumoFinanceiro();
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -447,6 +535,8 @@
       btnCancelarEdicao.classList.add('hidden');
       form.reset();
       itensOrcamento = [];
+      inputDescontoPercentual.value = '';
+      inputDescontoValor.value = '';
       renderItensOrcamento();
       selectVeiculo.innerHTML = '<option value="">Selecione o cliente primeiro...</option>';
       selectVeiculo.disabled = true;
@@ -463,7 +553,7 @@
       const { data, error } = await supabase
         .from('agendamentos')
         .select(`
-          id, cliente_id, veiculo_id, data_hora, status, observacoes,
+          id, cliente_id, veiculo_id, data_hora, status, observacoes, desconto_percentual, desconto_valor,
           clientes ( nome, telefone ),
           veiculos ( marca, modelo, placa ),
           agendamento_servicos ( servico_id, quantidade, preco_unitario, servicos ( descricao ) )
@@ -534,7 +624,10 @@
         </span>`
       ).join('');
 
-      const total = calcularTotalItens(ag.agendamento_servicos || []);
+      const subtotal = calcularTotalItens(ag.agendamento_servicos || []);
+      const descontoValor = Number(ag.desconto_valor) || 0;
+      const temDesconto = descontoValor > 0;
+      const totalFinal = calcularTotalFinal(ag.agendamento_servicos || [], descontoValor);
       const linkWhatsApp = gerarLinkWhatsApp(ag.clientes?.telefone, montarMensagemAgendamento(ag));
 
       return `
@@ -550,7 +643,13 @@
               </p>
               <p class="text-sm text-gray-500">🗓️ ${formatarDataHora(ag.data_hora)}</p>
               <div class="flex flex-wrap gap-1.5 pt-1">${itensBadges}</div>
-              <p class="text-sm font-semibold text-zinc-800 pt-1">Total: <span class="text-sky-600">${formatarMoeda(total)}</span></p>
+              ${temDesconto ? `
+                <p class="text-sm text-gray-400 line-through pt-1">Subtotal: ${formatarMoeda(subtotal)}</p>
+                <p class="text-sm text-red-500">Desconto: -${formatarMoeda(descontoValor)}${ag.desconto_percentual ? ` (${Number(ag.desconto_percentual).toFixed(1)}%)` : ''}</p>
+                <p class="text-sm font-semibold text-zinc-800">Total a pagar: <span class="text-sky-600">${formatarMoeda(totalFinal)}</span></p>
+              ` : `
+                <p class="text-sm font-semibold text-zinc-800 pt-1">Total: <span class="text-sky-600">${formatarMoeda(totalFinal)}</span></p>
+              `}
               ${ag.observacoes ? `<p class="text-sm text-gray-400 italic">"${escapeHtml(ag.observacoes)}"</p>` : ''}
             </div>
             <div class="shrink-0 space-y-2 w-full md:w-auto">
