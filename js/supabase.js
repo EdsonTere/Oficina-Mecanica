@@ -67,7 +67,7 @@ export async function requireAdmin() {
   const user = await requireAuth();
   if (!user) return null;
   if (!user.isAdmin) {
-    window.location.href = 'cliente.html';
+    window.location.href = 'clientes.html';
     return null;
   }
   return user;
@@ -196,6 +196,16 @@ export function calcularTotalItens(itens) {
 }
 
 // ---------------------------------------------------------------------
+// Calcula o total final a pagar, aplicando um desconto em reais sobre
+// o total bruto dos itens. Nunca retorna um valor negativo.
+// ---------------------------------------------------------------------
+export function calcularTotalFinal(itens, descontoValor) {
+  const subtotal = calcularTotalItens(itens);
+  const desconto = Number(descontoValor) || 0;
+  return Math.max(0, subtotal - desconto);
+}
+
+// ---------------------------------------------------------------------
 // Gera um link do WhatsApp (wa.me) com mensagem pré-preenchida.
 // Assume DDI do Brasil (55) quando o telefone não tiver código de país.
 // Retorna null se não houver telefone cadastrado.
@@ -221,13 +231,22 @@ export function montarMensagemAgendamento(agendamento) {
   const linhasItens = itens.map(item =>
     `• ${item.servicos?.descricao ?? 'Serviço'} (x${item.quantidade}) — ${formatarMoeda(item.preco_unitario * item.quantidade)}`
   ).join('\n');
-  const total = calcularTotalItens(itens);
+  const subtotal = calcularTotalItens(itens);
+  const descontoValor = Number(agendamento.desconto_valor) || 0;
+  const temDesconto = descontoValor > 0;
+  const totalFinal = calcularTotalFinal(itens, descontoValor);
+
+  const linhasValores = temDesconto
+    ? `💰 Subtotal: ${formatarMoeda(subtotal)}\n` +
+      `🏷️ Desconto: -${formatarMoeda(descontoValor)}${agendamento.desconto_percentual ? ` (${Number(agendamento.desconto_percentual).toFixed(1)}%)` : ''}\n` +
+      `💵 Total a pagar: ${formatarMoeda(totalFinal)}`
+    : `💰 Total: ${formatarMoeda(totalFinal)}`;
 
   return `Olá, ${agendamento.clientes?.nome ?? ''}! Aqui é da Oficina Mecânica.\n\n` +
     `🚗 Veículo: ${agendamento.veiculos ? `${agendamento.veiculos.marca} ${agendamento.veiculos.modelo} - ${agendamento.veiculos.placa}` : '-'}\n` +
     `🗓️ Data/Hora: ${formatarDataHora(agendamento.data_hora)}\n\n` +
     `Serviços:\n${linhasItens || '(nenhum item)'}\n\n` +
-    `💰 Total: ${formatarMoeda(total)}\n` +
+    `${linhasValores}\n` +
     `📌 Status: ${agendamento.status}` +
     (agendamento.observacoes ? `\n\n📝 Observações: ${agendamento.observacoes}` : '');
 }
