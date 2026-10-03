@@ -40,7 +40,7 @@
   </div>
 
   <script type="module">
-    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, calcularTotalItens, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth } from './js/supabase.js';
+    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, calcularTotalItens, calcularTotalFinal, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth } from './js/supabase.js';
 
     const params = new URLSearchParams(window.location.search);
     const agendamentoId = params.get('id');
@@ -69,7 +69,7 @@
       const { data: ag, error } = await supabase
         .from('agendamentos')
         .select(`
-          id, data_hora, status, observacoes,
+          id, data_hora, status, observacoes, desconto_percentual, desconto_valor,
           clientes ( nome, telefone, cpf ),
           veiculos ( marca, modelo, placa, ano ),
           agendamento_servicos ( quantidade, preco_unitario, servicos ( descricao ) )
@@ -84,7 +84,10 @@
       }
 
       const itens = ag.agendamento_servicos || [];
-      const total = calcularTotalItens(itens);
+      const subtotal = calcularTotalItens(itens);
+      const descontoValor = Number(ag.desconto_valor) || 0;
+      const temDesconto = descontoValor > 0;
+      const totalFinal = calcularTotalFinal(itens, descontoValor);
       const badge = STATUS_STYLE[ag.status] || STATUS_STYLE['Pendente'];
 
       conteudoEl.innerHTML = `
@@ -138,8 +141,18 @@
           </table>
         </div>
 
-        <div class="flex justify-end pt-2 border-t border-gray-200">
-          <p class="text-lg font-bold text-zinc-800">Total: <span class="text-sky-600">${formatarMoeda(total)}</span></p>
+        <div class="pt-2 border-t border-gray-200 space-y-1">
+          ${temDesconto ? `
+            <div class="flex justify-end gap-3 text-sm text-gray-500">
+              <span>Subtotal:</span><span>${formatarMoeda(subtotal)}</span>
+            </div>
+            <div class="flex justify-end gap-3 text-sm text-red-500">
+              <span>Desconto${ag.desconto_percentual ? ` (${Number(ag.desconto_percentual).toFixed(1)}%)` : ''}:</span><span>-${formatarMoeda(descontoValor)}</span>
+            </div>
+          ` : ''}
+          <div class="flex justify-end">
+            <p class="text-lg font-bold text-zinc-800">${temDesconto ? 'Total a pagar' : 'Total'}: <span class="text-sky-600">${formatarMoeda(totalFinal)}</span></p>
+          </div>
         </div>
 
         ${ag.observacoes ? `
