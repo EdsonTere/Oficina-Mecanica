@@ -72,7 +72,7 @@
   </nav>
 
   <script type="module">
-    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, formatarData, calcularTotalItens, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth, configurarBarraUsuario } from './js/supabase.js';
+    import { supabase, logSupabaseError, formatarMoeda, formatarDataHora, formatarData, calcularTotalItens, calcularTotalFinal, gerarLinkWhatsApp, montarMensagemAgendamento, requireAuth, configurarBarraUsuario } from './js/supabase.js';
 
     const listaEl = document.getElementById('lista-concluidos');
     const inputBusca = document.getElementById('input-busca');
@@ -87,7 +87,7 @@
       const { data, error } = await supabase
         .from('agendamentos')
         .select(`
-          id, data_hora, status, observacoes, data_revisao,
+          id, data_hora, status, observacoes, data_revisao, desconto_percentual, desconto_valor,
           clientes ( nome, telefone ),
           veiculos ( marca, modelo, placa ),
           agendamento_servicos ( quantidade, preco_unitario, servicos ( descricao ) )
@@ -172,7 +172,10 @@
         </span>`
       ).join('');
 
-      const total = calcularTotalItens(ag.agendamento_servicos || []);
+      const subtotal = calcularTotalItens(ag.agendamento_servicos || []);
+      const descontoValor = Number(ag.desconto_valor) || 0;
+      const temDesconto = descontoValor > 0;
+      const totalFinal = calcularTotalFinal(ag.agendamento_servicos || [], descontoValor);
       const linkWhatsApp = gerarLinkWhatsApp(ag.clientes?.telefone, montarMensagemAgendamento(ag));
 
       return `
@@ -188,7 +191,13 @@
               </p>
               <p class="text-sm text-gray-500">🗓️ ${formatarDataHora(ag.data_hora)}</p>
               <div class="flex flex-wrap gap-1.5 pt-1">${itensBadges}</div>
-              <p class="text-sm font-semibold text-zinc-800 pt-1">Total: <span class="text-sky-600">${formatarMoeda(total)}</span></p>
+              ${temDesconto ? `
+                <p class="text-sm text-gray-400 line-through pt-1">Subtotal: ${formatarMoeda(subtotal)}</p>
+                <p class="text-sm text-red-500">Desconto: -${formatarMoeda(descontoValor)}${ag.desconto_percentual ? ` (${Number(ag.desconto_percentual).toFixed(1)}%)` : ''}</p>
+                <p class="text-sm font-semibold text-zinc-800">Total pago: <span class="text-sky-600">${formatarMoeda(totalFinal)}</span></p>
+              ` : `
+                <p class="text-sm font-semibold text-zinc-800 pt-1">Total: <span class="text-sky-600">${formatarMoeda(totalFinal)}</span></p>
+              `}
 
               <div class="pt-2 border-t border-gray-100 mt-2">
                 <div class="revisao-exibicao flex items-center gap-2 text-sm">
